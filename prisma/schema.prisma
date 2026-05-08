@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String            @id @default(cuid())
+  name         String
+  email        String            @unique
+  passwordHash String
+  createdAt    DateTime          @default(now())
+  predictions  Prediction[]
+  reflections  DailyReflection[]
+}
+
+model Question {
+  id                 String       @id @default(cuid())
+  text               String
+  category           String
+  resolutionCriteria String
+  sourceUrl          String?
+  // PENDING | RESOLVED
+  status             String       @default("PENDING")
+  // YES | NO | null
+  correctAnswer      String?
+  publishDate        DateTime
+  resolutionDate     DateTime
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  predictions        Prediction[]
+
+  @@index([status, publishDate])
+}
+
+model Prediction {
+  id         String    @id @default(cuid())
+  userId     String
+  questionId String
+  // YES | NO
+  answer     String
+  // 60 | 70 | 80 | 90
+  confidence Int
+  // null until resolved
+  score      Int?
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId])
+  @@index([questionId])
+}
+
+model DailyReflection {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  text      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}

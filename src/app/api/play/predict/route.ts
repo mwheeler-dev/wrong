@@ -1,0 +1,104 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUserId } from "@/lib/session";
+import { CONFIDENCE_LEVELS, scoreFor, type Answer, type Confidence } from "@/lib/scoring";
+import { resultFeedback } from "@/lib/feedback";
+
+export async function POST(req: Request) {
+  const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  const body = await req.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+
+  const questionId = String(body.questionId ?? "");
+  const answer = String(body.answer ?? "") as Answer;
+  const confidence = Number(body.confidence) as Confidence;
+
+  if (!questionId) return NextResponse.json({ error: "Missing questionId" }, { status: 400 });
+  if (answer !== "YES" && answer !== "NO") {
+    return NextResponse.json({ error: "Answer must be YES or NO" }, { status: 400 });
+  }
+  if (!CONFIDENCE_LEVELS.includes(confidence as Confidence)) {
+    return NextResponse.json({ error: "Invalid confidence" }, { status: 400 });
+  }
+
+  const question = await prisma.question.findUnique({
+    where: { id: questionId },
+    select: {
+      id: true,
+      status: true,
+      correctAnswer: true,
+      resolutionDate: true,
+      publishDate: true,
+    },
+  });
+  if (!question) return NextResponse.json({ error: "Question not found" }, { status: 404 });
+
+  // Already answered guard (also enforced by unique constraint)
+  const existing = await prisma.prediction.findUnique({
+    where: { userId_questionId: { userId, questionId } },
+  });
+  if (existing) {
+    return NextResponse.json({ error: "Already answered" }, { status: 409 });
+  }
+
+  // Compute score now if question is already resolved (rare, but supported)
+  const correct = question.correctAnswer === "YES" || question.correctAnswer === "NO"
+    ? (question.correctAnswer as Answer)
+    : null;
+  const score = scoreFor(answer, correct, confidence);
+  const resolvedAt = correct != null ? new Date() : null;
+
+  const prediction = await prisma.prediction.create({
+    data: {
+      userId,
+      questionId,
+      answer,
+      confidence,
+      score,
+      resolvedAt,
+    },
+    select: {
+      id: true,
+      answer: true,
+      confidence: true,
+      score: true,
+    },
+  });
+
+  // Crowd stats — computed AFTER the user answered, including their answer
+  const all = await prisma.prediction.findMany({
+    where: { questionId },
+    select: { answer: true, confidence: true },
+  });
+  const total = all.length;
+  const yesCount = all.filter((p) => p.answer === "YES").length;
+  const noCount = total - yesCount;
+  const yesPct = total === 0 ? 0 : Math.round((yesCount / total) * 100);
+  const noPct = total === 0 ? 0 : 100 - yesPct;
+  const avgConfidence = total === 0
+    ? 0
+    : Math.round(all.reduce((sum, p) => sum + p.confidence, 0) / total);
+
+  const isCorrect = correct != null && answer === correct;
+  const feedback = resultFeedback({ correct: isCorrect, confidence });
+
+  return NextResponse.json({
+    prediction: {
+      answer: prediction.answer as Answer,
+      confidence: prediction.confidence,
+      score: prediction.score,
+    },
+    question: {
+      correctAnswer: correct,
+    },
+    crowd: {
+      yesPct,
+      noPct,
+      averageConfidence: avgConfidence,
+      totalPredictions: total,
+    },
+    feedback,
+  });
+}
