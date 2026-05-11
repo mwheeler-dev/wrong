@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid confidence" }, { status: 400 });
   }
 
-  // Server-side timer enforcement
+  // Round token signature (cheap, no DB)
   if (!roundToken) {
     return NextResponse.json({ error: "Missing round token" }, { status: 400 });
   }
@@ -34,6 +34,21 @@ export async function POST(req: Request) {
   if (!claims || claims.uid !== userId) {
     return NextResponse.json({ error: "Invalid round token" }, { status: 401 });
   }
+
+  // DUPLICATE CHECK FIRST. If a prediction for (userId, questionId) already
+  // exists, return 409 unconditionally — even if the round-token deadline has
+  // also expired. The client uses 409 as the "already answered" signal to
+  // record the id locally and advance without inflating progress. Returning
+  // 408 here instead would leave the client stuck.
+  const existing = await prisma.prediction.findUnique({
+    where: { userId_questionId: { userId, questionId } },
+    select: { id: true },
+  });
+  if (existing) {
+    return NextResponse.json({ error: "Already answered" }, { status: 409 });
+  }
+
+  // Now enforce the timer for fresh attempts.
   const deadlineCheck = checkRoundDeadline({
     claims,
     questionId,
@@ -55,35 +70,44 @@ export async function POST(req: Request) {
   });
   if (!question) return NextResponse.json({ error: "Question not found" }, { status: 404 });
 
-  const existing = await prisma.prediction.findUnique({
-    where: { userId_questionId: { userId, questionId } },
-  });
-  if (existing) {
-    return NextResponse.json({ error: "Already answered" }, { status: 409 });
-  }
-
   const correct = question.correctAnswer === "YES" || question.correctAnswer === "NO"
     ? (question.correctAnswer as Answer)
     : null;
   const score = scoreFor(answer, correct, confidence);
   const resolvedAt = correct != null ? new Date() : null;
 
-  const prediction = await prisma.prediction.create({
-    data: {
-      userId,
-      questionId,
-      answer,
-      confidence,
-      score,
-      resolvedAt,
-    },
-    select: {
-      id: true,
-      answer: true,
-      confidence: true,
-      score: true,
-    },
-  });
+  let prediction;
+  try {
+    prediction = await prisma.prediction.create({
+      data: {
+        userId,
+        questionId,
+        answer,
+        confidence,
+        score,
+        resolvedAt,
+      },
+      select: {
+        id: true,
+        answer: true,
+        confidence: true,
+        score: true,
+      },
+    });
+  } catch (err: unknown) {
+    // Race: another request landed a prediction between our findUnique and
+    // create (unique constraint on @@unique([userId, questionId]) trips this).
+    // Surface as 409 so the client treats it as already answered.
+    const isUniqueError =
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      (err as { code?: string }).code === "P2002";
+    if (isUniqueError) {
+      return NextResponse.json({ error: "Already answered" }, { status: 409 });
+    }
+    throw err;
+  }
 
   // Crowd stats — only computed after the user has answered
   const all = await prisma.prediction.findMany({
@@ -92,7 +116,6 @@ export async function POST(req: Request) {
   });
   const total = all.length;
   const yesCount = all.filter((p) => p.answer === "YES").length;
-  const noCount = total - yesCount;
   const yesPct = total === 0 ? 0 : Math.round((yesCount / total) * 100);
   const noPct = total === 0 ? 0 : 100 - yesPct;
   const avgConfidence = total === 0

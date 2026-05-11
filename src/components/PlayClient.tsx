@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QuestionCard, type QuestionForPlay } from "./QuestionCard";
 import { ConfidenceSelector } from "./ConfidenceSelector";
@@ -22,34 +23,54 @@ type SubmitResponse = {
 };
 
 export function PlayClient({ questions, initialAnsweredIds }: Props) {
-  // IDs the user has answered. Seeded from the server's view (covers anything
-  // persisted before this mount) and grown locally when the user answers more
-  // questions in this session.
+  const router = useRouter();
+
+  // SOURCE OF TRUTH for progress.
+  // - Always a Set<string>, so adding the same id multiple times is idempotent.
+  // - Seeded from the server's snapshot of today's answered ids on mount.
+  // - Grown on a successful predict (200) AND on a duplicate-detected predict
+  //   (409) — both routes through the same setter, both go through Set
+  //   semantics. Re-answering the same question can NEVER inflate the count.
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(
     () => new Set(initialAnsweredIds),
   );
-  // IDs the user skipped this session (timer expired). Session-only.
+
+  // Session-only "I gave up on this for now" set. Used purely so that the UI
+  // can advance past a question whose timer expired without persisting a
+  // prediction. NOT counted in progress. Wiped on remount, so on the next
+  // /play visit, skipped questions reappear (per spec point 6: active = first
+  // not in answeredIds).
   const [skippedIds, setSkippedIds] = useState<Set<string>>(() => new Set());
 
-  // Selections for the current question
+  // Current selections / submission state
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [confidence, setConfidence] = useState<Confidence | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SubmitResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Server-issued round token covering the questions remaining at mount time
+  // Round token covering the questions remaining at mount time
   const [roundToken, setRoundToken] = useState<string | null>(null);
   const tokenRequestedRef = useRef(false);
 
-  // Reflection / completion state
+  // Reflection state for the completion screen
   const [reflection, setReflection] = useState("");
   const [reflectionSaved, setReflectionSaved] = useState(false);
-  const [doneAcknowledged, setDoneAcknowledged] = useState(false);
 
-  // Whenever the server-provided answered set grows (e.g. via revalidatePath
-  // bumping the route after a previous submission), merge it into our local
-  // state. This is purely additive — we never forget locally-answered IDs.
+  // Idempotent helper: add a single id to answeredIds, no-op if already in.
+  function recordAnswered(id: string) {
+    setAnsweredIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }
+
+  // Additively merge any newer server-known answered ids into local state.
+  // We never REMOVE locally. If router cache serves a momentarily stale
+  // payload (e.g. immediately after a predict before revalidate propagates),
+  // local progress survives the merge.
   useEffect(() => {
     if (initialAnsweredIds.length === 0) return;
     setAnsweredIds((prev) => {
@@ -65,10 +86,13 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
     });
   }, [initialAnsweredIds]);
 
-  // Derived: questions to actually play, in order, skipping anything already
-  // passed (answered or skipped). `current` is always the next unanswered.
+  // ── DERIVED STATE ──────────────────────────────────────────────────────
+  // `current` is computed strictly from the spec: the first question in
+  // today's batch whose id is not in answeredIds. Within a session we also
+  // exclude `skippedIds` so the UI doesn't loop on a question whose timer
+  // expired — but `skippedIds` does not affect progress or persistence.
   const passedIds = useMemo(() => {
-    const s = new Set(answeredIds);
+    const s = new Set<string>(answeredIds);
     for (const id of skippedIds) s.add(id);
     return s;
   }, [answeredIds, skippedIds]);
@@ -79,17 +103,18 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
   );
   const current = remaining[0] ?? null;
 
-  // Position display: question N of M (1-based, in the full batch)
   const total = questions.length;
-  const displayPosition = result
-    ? // result is for the just-answered question; show its number
-      total - remaining.length
-    : // showing the live question; show its 1-based slot
-      total - remaining.length + 1;
+  // PROGRESS DEFINITION — used by both the "X / total" label and the bar.
+  // Equal to the Streak/dashboard definition: count of UNIQUE questionIds in
+  // today's batch the user has actually predicted on.
+  const uniqueAnsweredCount = answeredIds.size;
+  const progressPct = total === 0 ? 0 : (uniqueAnsweredCount / total) * 100;
+  const allAnswered = total > 0 && uniqueAnsweredCount >= total;
 
-  // Request a round token once, signed for the questions remaining at mount.
-  // Per-question deadlines on the server are relative to this token's iat,
-  // so signing only the unanswered subset gives the first one a fresh 30s.
+  // ── ROUND TOKEN ────────────────────────────────────────────────────────
+  // Request once at mount, signed for the questions that are unanswered at
+  // mount time. Per-question deadlines on the server are relative to this
+  // token's iat, so the first question always gets a fresh 30s window.
   useEffect(() => {
     if (tokenRequestedRef.current) return;
     tokenRequestedRef.current = true;
@@ -113,14 +138,15 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
           setRoundToken(data.roundToken);
         }
       } catch {
-        // Submission will surface a "missing round token" error if this fails
+        // Submission will surface a "missing round token" error if this fails.
       }
     })();
     // run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // No questions to play at all — empty pipeline
+  // ── EARLY SCREENS ──────────────────────────────────────────────────────
+  // 0 published today
   if (total === 0) {
     return (
       <div className="wrap pt-12">
@@ -135,17 +161,59 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
     );
   }
 
-  // Round complete: all questions in today's batch have been answered/skipped.
-  const allDone = current == null && !result;
-  if (allDone) {
-    return <DoneScreen
-      reflection={reflection}
-      setReflection={setReflection}
-      reflectionSaved={reflectionSaved}
-      setReflectionSaved={setReflectionSaved}
-      doneAcknowledged={doneAcknowledged}
-      setDoneAcknowledged={setDoneAcknowledged}
-    />;
+  // All unique questions answered, and the user has dismissed the last result
+  // (or never opened one because they returned to /play after finishing).
+  if (allAnswered && !result) {
+    return (
+      <DoneScreen
+        reflection={reflection}
+        setReflection={setReflection}
+        reflectionSaved={reflectionSaved}
+        setReflectionSaved={setReflectionSaved}
+      />
+    );
+  }
+
+  // No current and no result, but not yet at 10/10 → everything remaining was
+  // skipped this session. Offer to bring them back.
+  if (!current && !result) {
+    return (
+      <div className="wrap pt-12">
+        <h1 className="display text-4xl">A few left.</h1>
+        <p className="mt-3 text-muted">
+          {uniqueAnsweredCount} of {total} answered. The rest are still open —
+          bring them back to try again.
+        </p>
+        <button
+          className="btn-accent mt-6"
+          onClick={() => {
+            setSkippedIds(new Set());
+            // Old token's deadlines may have lapsed — mint a fresh one for
+            // the now-unanswered subset.
+            const fresh = questions.filter((q) => !answeredIds.has(q.id));
+            if (fresh.length === 0) return;
+            setRoundToken(null);
+            void (async () => {
+              try {
+                const res = await fetch("/api/play/round", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    questionIds: fresh.map((q) => q.id),
+                  }),
+                });
+                const data = await res.json();
+                if (res.ok && data.roundToken) {
+                  setRoundToken(data.roundToken);
+                }
+              } catch {}
+            })();
+          }}
+        >
+          Bring them back
+        </button>
+      </div>
+    );
   }
 
   function goNext() {
@@ -172,11 +240,15 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        // Defensive: if the server already has this prediction (stale view,
-        // duplicate submit, etc.), treat it as answered and move on instead
-        // of getting stuck on the error.
+        // Duplicate submission: the server already has a prediction for this
+        // (userId, questionId). Treat as already answered, do NOT show a
+        // result card (we have no fresh response data for it), record the id
+        // idempotently (Set semantics → never double-counts), and move on.
         if (res.status === 409) {
-          setAnsweredIds((prev) => new Set(prev).add(current.id));
+          recordAnswered(current.id);
+          // Refresh the route cache so the next navigation to /play sees the
+          // accurate answered set.
+          router.refresh();
           setSubmitting(false);
           goNext();
           return;
@@ -185,10 +257,14 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
         setSubmitting(false);
         return;
       }
-      // Success: lock in locally so the current question is removed from
-      // `remaining` and the next render shows the result card.
-      setAnsweredIds((prev) => new Set(prev).add(current.id));
+
+      // Success.
+      recordAnswered(current.id);
       setResult(data);
+      // Keep the Router Cache for /play in sync so a back-navigation from
+      // any other route returns to the correct next question. The server
+      // also calls revalidatePath('/play') as a server-side backstop.
+      router.refresh();
     } catch {
       setError("Network error.");
     } finally {
@@ -198,29 +274,41 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
 
   function handleTimerExpire() {
     if (!current || result) return;
-    // Skip this question this session without recording a prediction.
-    setSkippedIds((prev) => new Set(prev).add(current.id));
+    // Skip this question for the rest of this session. Does NOT touch
+    // answeredIds and therefore does NOT touch progress. The question will
+    // reappear on remount because it remains absent from answeredIds.
+    setSkippedIds((prev) => {
+      if (prev.has(current.id)) return prev;
+      const next = new Set(prev);
+      next.add(current.id);
+      return next;
+    });
     goNext();
   }
 
   return (
     <div className="wrap pt-3 sm:pt-4">
+      {/* Progress strictly = unique answered count. Matches Streak. */}
       <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-muted">
         <span className="tabular-nums">
-          {displayPosition} / {total}
+          {uniqueAnsweredCount} / {total}
         </span>
         <span>How wrong are you today?</span>
       </div>
       <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-ink/10">
         <div
           className="h-full bg-ink transition-all"
-          style={{ width: `${((displayPosition - (result ? 0 : 1)) / total) * 100}%` }}
+          style={{ width: `${progressPct}%` }}
         />
       </div>
 
       {!result && current && (
         <div className="mt-3 sm:mt-4">
-          <Timer seconds={30} resetKey={current.id} onExpire={handleTimerExpire} />
+          <Timer
+            seconds={30}
+            resetKey={current.id}
+            onExpire={handleTimerExpire}
+          />
         </div>
       )}
 
@@ -239,7 +327,7 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
               onClick={goNext}
               className="btn-primary mt-3 w-full text-base sm:mt-4"
             >
-              {remaining.length === 0 ? "Finish" : "Next question"}
+              {allAnswered ? "Finish" : "Next question"}
             </button>
           </>
         ) : current ? (
@@ -281,15 +369,11 @@ function DoneScreen({
   setReflection,
   reflectionSaved,
   setReflectionSaved,
-  doneAcknowledged,
-  setDoneAcknowledged,
 }: {
   reflection: string;
   setReflection: (s: string) => void;
   reflectionSaved: boolean;
   setReflectionSaved: (b: boolean) => void;
-  doneAcknowledged: boolean;
-  setDoneAcknowledged: (b: boolean) => void;
 }) {
   async function saveReflection() {
     if (!reflection.trim()) {
@@ -311,47 +395,42 @@ function DoneScreen({
         Reality will get back to you. Most questions resolve within a few days.
       </p>
 
-      {!doneAcknowledged && (
-        <div className="card mt-8">
-          <div className="label">One last thing</div>
-          <h2 className="display mt-1 text-2xl sm:text-3xl">
-            What would change your mind?
-          </h2>
-          <p className="mt-2 text-sm text-muted">
-            Optional. A quick note for future-you.
-          </p>
+      <div className="card mt-8">
+        <div className="label">One last thing</div>
+        <h2 className="display mt-1 text-2xl sm:text-3xl">
+          What would change your mind?
+        </h2>
+        <p className="mt-2 text-sm text-muted">
+          Optional. A quick note for future-you.
+        </p>
 
-          {!reflectionSaved ? (
-            <>
-              <textarea
-                className="input mt-4 min-h-[120px]"
-                placeholder="A new piece of evidence, a person changing their tune, a number crossing a line..."
-                value={reflection}
-                onChange={(e) => setReflection(e.target.value)}
-              />
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={saveReflection}
-                  className="btn-primary flex-1 sm:flex-none"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => {
-                    setReflectionSaved(true);
-                    setDoneAcknowledged(true);
-                  }}
-                  className="btn-ghost flex-1 sm:flex-none"
-                >
-                  Skip
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="mt-3 text-muted">Saved. Reality is on the clock.</p>
-          )}
-        </div>
-      )}
+        {!reflectionSaved ? (
+          <>
+            <textarea
+              className="input mt-4 min-h-[120px]"
+              placeholder="A new piece of evidence, a person changing their tune, a number crossing a line..."
+              value={reflection}
+              onChange={(e) => setReflection(e.target.value)}
+            />
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={saveReflection}
+                className="btn-primary flex-1 sm:flex-none"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setReflectionSaved(true)}
+                className="btn-ghost flex-1 sm:flex-none"
+              >
+                Skip
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="mt-3 text-muted">Saved. Reality is on the clock.</p>
+        )}
+      </div>
 
       <div className="mt-8 flex flex-col gap-2 sm:flex-row">
         <Link href="/dashboard" className="btn-accent w-full sm:w-auto">
