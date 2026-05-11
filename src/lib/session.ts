@@ -30,8 +30,14 @@ export async function createSession(userId: string) {
 }
 
 export function clearSession() {
+  // Mirror the attributes used in createSession() (except maxAge=0) so the
+  // browser reliably evicts the existing cookie. In particular, in production
+  // the original cookie was Secure; the clearing Set-Cookie must travel over
+  // HTTPS to be accepted, which is the case behind Railway/Vercel.
   cookies().set(COOKIE_NAME, "", {
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
     path: "/",
     maxAge: 0,
   });

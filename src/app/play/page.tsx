@@ -11,18 +11,16 @@ export default async function PlayPage() {
 
   const now = new Date();
 
-  // 10 questions: published, unresolved at this moment, not yet answered by user
-  const candidates = await prisma.question.findMany({
+  // Today's batch: published + still open. We deliberately do NOT filter by
+  // "user hasn't answered" here, so the batch is stable. The user's answered
+  // IDs are fetched separately and used by PlayClient to (a) start at the first
+  // unanswered question on initial render and (b) defend against any stale
+  // RSC payload the Router Cache might serve when navigating back to /play.
+  const batch = await prisma.question.findMany({
     where: {
       publishDate: { lte: now },
-      // include resolved-but-unanswered too? No: only let users predict on still-open questions
-      OR: [
-        { status: "PENDING" },
-      ],
+      status: "PENDING",
       resolutionDate: { gt: now },
-      predictions: {
-        none: { userId },
-      },
     },
     orderBy: [{ publishDate: "desc" }, { createdAt: "desc" }],
     take: 10,
@@ -35,7 +33,17 @@ export default async function PlayPage() {
     },
   });
 
-  const questions = candidates.map((q) => ({
+  const batchIds = batch.map((q) => q.id);
+  const userPredictions =
+    batchIds.length === 0
+      ? []
+      : await prisma.prediction.findMany({
+          where: { userId, questionId: { in: batchIds } },
+          select: { questionId: true },
+        });
+  const answeredIds = userPredictions.map((p) => p.questionId);
+
+  const questions = batch.map((q) => ({
     id: q.id,
     text: q.text,
     category: q.category,
@@ -43,5 +51,5 @@ export default async function PlayPage() {
     sourceUrl: q.sourceUrl,
   }));
 
-  return <PlayClient questions={questions} />;
+  return <PlayClient questions={questions} initialAnsweredIds={answeredIds} />;
 }

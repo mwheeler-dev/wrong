@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/session";
 import { CONFIDENCE_LEVELS, scoreFor, type Answer, type Confidence } from "@/lib/scoring";
@@ -100,6 +101,12 @@ export async function POST(req: Request) {
 
   const isCorrect = correct != null && answer === correct;
   const feedback = resultFeedback({ correct: isCorrect, confidence });
+
+  // Invalidate the Router Cache for /play so that any future navigation
+  // back to the round (e.g., user clicks "You" then "Play" mid-round) reads a
+  // fresh server-rendered batch with this prediction reflected in the
+  // answered-IDs set, instead of serving a stale RSC payload.
+  revalidatePath("/play");
 
   return NextResponse.json({
     prediction: {
