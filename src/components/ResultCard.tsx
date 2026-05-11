@@ -24,32 +24,39 @@ export function ResultCard({ answer, confidence, correctAnswer, score, crowd, fe
 
   return (
     <div className="card fade-in">
-      <div className="label">Locked in</div>
-      <p className="mt-1 text-lg">
-        You said <strong>{answer}</strong> @ <strong>{confidence}%</strong>
-      </p>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="label">Locked in</span>
+        <p className="text-sm">
+          <strong>{answer}</strong>
+          <span className="text-muted"> @ </span>
+          <strong>{confidence}%</strong>
+        </p>
+      </div>
 
-      <div className="mt-5 rounded-2xl bg-ink p-5 text-paper">
+      <div className="mt-4 rounded-2xl bg-ink p-4 text-paper sm:p-5">
         {resolved ? (
-          <>
-            <div className="text-sm uppercase tracking-wider opacity-70">Reality says</div>
-            <div className="display mt-1 text-5xl">{correctAnswer}</div>
-            <div className={`display mt-3 text-4xl ${positive ? "text-accent" : "text-bad"}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-wider opacity-70">Reality says</div>
+              <div className="display mt-1 text-4xl sm:text-5xl">{correctAnswer}</div>
+            </div>
+            <div className={`display text-4xl sm:text-5xl ${positive ? "text-accent" : "text-bad"}`}>
               {positive ? "+" : ""}
               {score}
             </div>
-            <p className="mt-3 text-sm opacity-90">{feedback}</p>
-          </>
+          </div>
         ) : (
           <>
-            <div className="text-sm uppercase tracking-wider opacity-70">Reality says</div>
+            <div className="text-[11px] uppercase tracking-wider opacity-70">Reality says</div>
             <div className="display mt-1 text-3xl">Pending.</div>
-            <p className="mt-3 text-sm opacity-90">We'll score this when it resolves.</p>
           </>
         )}
+        <p className="mt-3 text-sm opacity-90">
+          {resolved ? feedback : "We'll score this when it resolves."}
+        </p>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <div className="label">What everyone else said</div>
         <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-ink/10">
           <div className="h-full bg-ink" style={{ width: `${crowd.yesPct}%` }} />
@@ -60,7 +67,8 @@ export function ResultCard({ answer, confidence, correctAnswer, score, crowd, fe
           <span><strong className="text-ink">{crowd.noPct}%</strong> NO</span>
         </div>
         <div className="mt-2 text-xs text-muted">
-          Avg. confidence {crowd.averageConfidence}% · {crowd.totalPredictions} predictions
+          Avg. confidence {crowd.averageConfidence}% · {crowd.totalPredictions} prediction
+          {crowd.totalPredictions === 1 ? "" : "s"}
         </div>
       </div>
     </div>

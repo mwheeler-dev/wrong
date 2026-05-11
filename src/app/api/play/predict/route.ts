@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/session";
 import { CONFIDENCE_LEVELS, scoreFor, type Answer, type Confidence } from "@/lib/scoring";
 import { resultFeedback } from "@/lib/feedback";
+import { checkRoundDeadline, verifyRoundToken } from "@/lib/round";
 
 export async function POST(req: Request) {
   const userId = await getCurrentUserId();
@@ -14,6 +15,7 @@ export async function POST(req: Request) {
   const questionId = String(body.questionId ?? "");
   const answer = String(body.answer ?? "") as Answer;
   const confidence = Number(body.confidence) as Confidence;
+  const roundToken = typeof body.roundToken === "string" ? body.roundToken : "";
 
   if (!questionId) return NextResponse.json({ error: "Missing questionId" }, { status: 400 });
   if (answer !== "YES" && answer !== "NO") {
@@ -21,6 +23,23 @@ export async function POST(req: Request) {
   }
   if (!CONFIDENCE_LEVELS.includes(confidence as Confidence)) {
     return NextResponse.json({ error: "Invalid confidence" }, { status: 400 });
+  }
+
+  // Server-side timer enforcement
+  if (!roundToken) {
+    return NextResponse.json({ error: "Missing round token" }, { status: 400 });
+  }
+  const claims = await verifyRoundToken(roundToken);
+  if (!claims || claims.uid !== userId) {
+    return NextResponse.json({ error: "Invalid round token" }, { status: 401 });
+  }
+  const deadlineCheck = checkRoundDeadline({
+    claims,
+    questionId,
+    now: Date.now(),
+  });
+  if (!deadlineCheck.ok) {
+    return NextResponse.json({ error: deadlineCheck.reason }, { status: 408 });
   }
 
   const question = await prisma.question.findUnique({
@@ -35,7 +54,6 @@ export async function POST(req: Request) {
   });
   if (!question) return NextResponse.json({ error: "Question not found" }, { status: 404 });
 
-  // Already answered guard (also enforced by unique constraint)
   const existing = await prisma.prediction.findUnique({
     where: { userId_questionId: { userId, questionId } },
   });
@@ -43,7 +61,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Already answered" }, { status: 409 });
   }
 
-  // Compute score now if question is already resolved (rare, but supported)
   const correct = question.correctAnswer === "YES" || question.correctAnswer === "NO"
     ? (question.correctAnswer as Answer)
     : null;
@@ -67,7 +84,7 @@ export async function POST(req: Request) {
     },
   });
 
-  // Crowd stats — computed AFTER the user answered, including their answer
+  // Crowd stats — only computed after the user has answered
   const all = await prisma.prediction.findMany({
     where: { questionId },
     select: { answer: true, confidence: true },

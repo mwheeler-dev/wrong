@@ -24,13 +24,19 @@ export function QuestionCard({ question, answer, onSelectAnswer, disabled }: Pro
     day: "numeric",
   });
 
+  // Make long questions scale down smoothly on phones
+  const len = question.text.length;
+  const sizeClass = len > 120 ? "text-xl sm:text-3xl" : len > 80 ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl";
+
   return (
     <article className="card fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="pill-accent">{question.category}</span>
-        <span className="text-xs text-muted">Resolves {resolves}</span>
+        <span className="text-[11px] uppercase tracking-wider text-muted">
+          Resolves {resolves}
+        </span>
       </div>
-      <h2 className="display mt-5 text-3xl sm:text-4xl">{question.text}</h2>
+      <h2 className={`display mt-4 ${sizeClass} sm:mt-5`}>{question.text}</h2>
 
       {question.sourceUrl && (
         <a
@@ -43,7 +49,7 @@ export function QuestionCard({ question, answer, onSelectAnswer, disabled }: Pro
         </a>
       )}
 
-      <div className="mt-6 grid grid-cols-2 gap-3">
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:mt-6">
         <AnswerButton label="YES" selected={answer === "YES"} onClick={() => onSelectAnswer("YES")} disabled={disabled} />
         <AnswerButton label="NO" selected={answer === "NO"} onClick={() => onSelectAnswer("NO")} disabled={disabled} />
       </div>
@@ -68,8 +74,10 @@ function AnswerButton({
       onClick={onClick}
       disabled={disabled}
       className={clsx(
-        "rounded-3xl border-2 py-7 text-2xl font-black tracking-wide transition active:scale-[0.98]",
-        selected ? "border-ink bg-ink text-paper" : "border-ink/20 bg-white text-ink hover:border-ink"
+        "min-h-[80px] rounded-3xl border-2 py-6 text-2xl font-black tracking-wide transition active:scale-[0.98] sm:py-7 sm:text-3xl",
+        selected
+          ? "border-ink bg-ink text-paper"
+          : "border-ink/15 bg-white text-ink hover:border-ink"
       )}
     >
       {label}

@@ -12,7 +12,17 @@ type Props = {
 export function ConfidenceSelector({ value, onChange, disabled }: Props) {
   return (
     <div>
-      <p className="label">Confidence</p>
+      <div className="flex items-baseline justify-between">
+        <p className="label">Confidence</p>
+        {value != null && (
+          <p className="text-xs text-muted">
+            {value === 60 && "Hedge."}
+            {value === 70 && "Lean."}
+            {value === 80 && "Bold."}
+            {value === 90 && "All in."}
+          </p>
+        )}
+      </div>
       <div className="mt-2 grid grid-cols-4 gap-2">
         {CONFIDENCE_LEVELS.map((c) => (
           <button
@@ -21,7 +31,7 @@ export function ConfidenceSelector({ value, onChange, disabled }: Props) {
             disabled={disabled}
             onClick={() => onChange(c)}
             className={clsx(
-              "rounded-2xl border px-3 py-3 text-base font-bold transition",
+              "min-h-[56px] rounded-2xl border px-2 py-3 text-base font-bold transition sm:text-lg",
               value === c
                 ? "border-ink bg-ink text-paper"
                 : "border-line bg-white text-ink hover:border-ink"

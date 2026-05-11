@@ -37,7 +37,10 @@ export function clearSession() {
   });
 }
 
-export async function getCurrentUserId(): Promise<string | null> {
+// Read the user id from the signed cookie. JWT-only — does not check the DB.
+// Internal helper; outside callers should prefer getCurrentUserId / getCurrentUser
+// which also verify the user still exists in the database.
+async function readJwtUserId(): Promise<string | null> {
   const token = cookies().get(COOKIE_NAME)?.value;
   if (!token) return null;
   try {
@@ -49,13 +52,24 @@ export async function getCurrentUserId(): Promise<string | null> {
   }
 }
 
+// Returns the full user record if the cookie is valid AND the user still exists
+// in the database. Otherwise returns null — orphaned cookies (valid JWT, no row)
+// are treated as logged-out.
 export async function getCurrentUser() {
-  const id = await getCurrentUserId();
+  const id = await readJwtUserId();
   if (!id) return null;
   return prisma.user.findUnique({
     where: { id },
     select: { id: true, name: true, email: true, createdAt: true },
   });
+}
+
+// Returns the user id only if the user exists in the database. Otherwise null.
+// This is intentionally stricter than reading the cookie alone, so that an
+// orphaned JWT (e.g. after a DB reset) does NOT count as a logged-in user.
+export async function getCurrentUserId(): Promise<string | null> {
+  const user = await getCurrentUser();
+  return user?.id ?? null;
 }
 
 export function isAdmin(email?: string | null) {

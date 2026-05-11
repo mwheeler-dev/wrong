@@ -4,6 +4,9 @@
 
 :root {
   color-scheme: light;
+  /* Account for iOS safe area */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 
 html, body {
@@ -12,10 +15,19 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* Prevent iOS double-tap zoom on buttons */
+  touch-action: manipulation;
 }
 
 body {
   font-feature-settings: "ss01", "cv02", "cv11";
+  /* Avoid horizontal scroll on small screens */
+  overflow-x: hidden;
+}
+
+/* Avoid iOS auto-zoom on inputs (font-size must be >= 16px) */
+input, select, textarea {
+  font-size: 16px;
 }
 
 @layer components {
@@ -27,7 +39,7 @@ body {
   }
 
   .btn {
-    @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex min-h-[44px] items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-primary {
     @apply btn bg-ink text-paper hover:opacity-90;
@@ -43,11 +55,11 @@ body {
   }
 
   .card {
-    @apply rounded-3xl border border-line bg-white p-5 shadow-[0_1px_0_rgba(0,0,0,0.04)];
+    @apply rounded-3xl border border-line bg-white p-4 shadow-[0_1px_0_rgba(0,0,0,0.04)] sm:p-5;
   }
 
   .pill {
-    @apply inline-flex items-center rounded-full border border-ink/10 bg-ink/5 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-ink;
+    @apply inline-flex items-center rounded-full border border-ink/10 bg-ink/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-ink;
   }
   .pill-accent {
     @apply pill bg-accent border-transparent;
@@ -58,11 +70,16 @@ body {
   }
 
   .label {
-    @apply text-xs font-semibold uppercase tracking-wider text-muted;
+    @apply text-[11px] font-semibold uppercase tracking-wider text-muted;
   }
 
   .display {
     @apply font-display font-black tracking-tightest leading-[0.95];
+  }
+
+  /* Bottom-anchored mobile sticky CTA */
+  .sticky-cta {
+    @apply fixed inset-x-0 bottom-0 z-20 border-t border-line bg-paper/95 px-4 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] pt-3 backdrop-blur;
   }
 }
 
@@ -73,4 +90,13 @@ body {
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* hero gentle pulse for the dot */
+.pulse-dot {
+  animation: pulse-dot 2.2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }

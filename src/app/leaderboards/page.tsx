@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/session";
 import { LeaderboardTable, type LeaderboardRow } from "@/components/LeaderboardTable";
@@ -68,14 +68,16 @@ async function buildRows(opts: {
 
 export default async function LeaderboardsPage({
   searchParams,
-}: { searchParams: SearchParams }) {
+}: {
+  searchParams: SearchParams;
+}) {
   const userId = await getCurrentUserId();
-  if (!userId) redirect("/login");
-
   const tab = searchParams.tab === "all" || searchParams.tab === "category" ? searchParams.tab : "week";
-  const category = searchParams.category && CATEGORIES.includes(searchParams.category as (typeof CATEGORIES)[number])
-    ? searchParams.category
-    : CATEGORIES[0];
+  const category =
+    searchParams.category &&
+    CATEGORIES.includes(searchParams.category as (typeof CATEGORIES)[number])
+      ? searchParams.category
+      : CATEGORIES[0];
 
   let rows: LeaderboardRow[] = [];
   if (tab === "week") {
@@ -87,14 +89,29 @@ export default async function LeaderboardsPage({
   }
 
   return (
-    <div className="wrap-wide pt-6">
-      <h1 className="display text-5xl">Boards.</h1>
+    <div className="wrap-wide pt-6 pb-16">
+      <h1 className="display text-4xl sm:text-5xl">Boards.</h1>
       <p className="mt-1 text-muted">Reality keeps score. We just rank it.</p>
+
+      {!userId && (
+        <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 bg-ink text-paper">
+          <p className="text-sm">
+            Curious? <span className="font-semibold">Sign up to put your name on the board.</span>
+          </p>
+          <Link href="/signup" className="btn-accent">
+            Sign up
+          </Link>
+        </div>
+      )}
 
       <div className="mt-6 flex flex-wrap gap-2">
         <Tab href="/leaderboards?tab=week" active={tab === "week"} label="This week" />
         <Tab href="/leaderboards?tab=all" active={tab === "all"} label="All time" />
-        <Tab href={`/leaderboards?tab=category&category=${encodeURIComponent(category)}`} active={tab === "category"} label="By category" />
+        <Tab
+          href={`/leaderboards?tab=category&category=${encodeURIComponent(category)}`}
+          active={tab === "category"}
+          label="By category"
+        />
       </div>
 
       {tab === "category" && (
@@ -112,7 +129,7 @@ export default async function LeaderboardsPage({
       )}
 
       <div className="mt-6">
-        <LeaderboardTable rows={rows} highlightUserId={userId} />
+        <LeaderboardTable rows={rows} highlightUserId={userId ?? undefined} />
       </div>
     </div>
   );
