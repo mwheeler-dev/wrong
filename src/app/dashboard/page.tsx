@@ -6,6 +6,7 @@ import { ScoreCard } from "@/components/ScoreCard";
 import { Streak } from "@/components/Streak";
 import { Calibration } from "@/components/Calibration";
 import { Journal } from "@/components/Journal";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { startOfToday, endOfToday, startOfWeek, formatShortDate } from "@/lib/dates";
 import { dangerousConfidenceLine } from "@/lib/feedback";
 import { computeStreak } from "@/lib/streaks";
@@ -130,7 +131,16 @@ export default async function DashboardPage() {
 
       <Link href="/play" className="btn-accent mt-4 inline-flex w-full sm:hidden">Play today</Link>
 
-      <p className="mt-10 label">Edge</p>
+      <div className="mt-10 flex items-center gap-2">
+        <p className="label">Edge</p>
+        <InfoTooltip label="What is Edge?">
+          Edge increases when your predictions are correct relative to your
+          confidence.
+        </InfoTooltip>
+      </div>
+      <p className="mt-1 text-sm text-muted">
+        Reality keeps score. Edge is the difference.
+      </p>
       <section className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <ScoreCard
           label="Today’s Edge"

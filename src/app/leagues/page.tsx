@@ -6,11 +6,33 @@ import { CATEGORIES } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Reusable "Forecasting tournaments coming soon" banner.
+ * Black breathing card — same prestige treatment as the dashboard streak
+ * card and the /boards hero, so the three pages feel like one product.
+ */
+function TournamentsBanner() {
+  return (
+    <div className="streak-card border border-paper/10">
+      <div className="relative p-6 sm:p-8">
+        <p className="label text-accent">Coming soon</p>
+        <h2 className="display mt-2 text-3xl sm:text-4xl">
+          Forecasting tournaments are coming.
+        </h2>
+        <p className="mt-3 max-w-md text-sm text-paper/75">
+          Soon, leagues won’t just track your category performance. They’ll
+          host seasonal competitions, head-to-head matchups, and prediction
+          tournaments. Rankings are only the beginning.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default async function LeaguesPage() {
   const userId = await getCurrentUserId();
 
   if (!userId) {
-    // Signed-out teaser
     const emptyStats: CategoryStat[] = CATEGORIES.map((category) => ({
       category,
       totalScore: 0,
@@ -21,14 +43,20 @@ export default async function LeaguesPage() {
     return (
       <div className="wrap-wide pt-6 pb-16">
         <h1 className="display text-4xl sm:text-5xl">Leagues.</h1>
-        <p className="mt-1 text-muted">Where are you sharp? Where are you wrong?</p>
+        <p className="mt-1 text-muted">
+          Where you’re sharp. Where you’re wrong.
+        </p>
 
-        <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 bg-ink text-paper">
-          <p className="text-sm">
-            Leagues track <span className="font-semibold">your</span> performance by category.{" "}
-            <span className="font-semibold">Sign up to start scoring.</span>
+        <div className="mt-4">
+          <TournamentsBanner />
+        </div>
+
+        <div className="card mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted">
+            Leagues track <strong className="text-ink">your</strong> performance
+            by category. Sign up to start scoring.
           </p>
-          <Link href="/signup" className="btn-accent">
+          <Link href="/signup" className="btn-primary">
             Sign up
           </Link>
         </div>
@@ -71,7 +99,13 @@ export default async function LeaguesPage() {
   return (
     <div className="wrap-wide pt-6 pb-16">
       <h1 className="display text-4xl sm:text-5xl">Leagues.</h1>
-      <p className="mt-1 text-muted">Where are you sharp? Where are you wrong?</p>
+      <p className="mt-1 text-muted">
+        Where you’re sharp. Where you’re wrong.
+      </p>
+
+      <div className="mt-4">
+        <TournamentsBanner />
+      </div>
 
       <div className="mt-6">
         <CategoryStats stats={stats} />

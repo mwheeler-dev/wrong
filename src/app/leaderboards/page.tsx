@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getUserTimezone } from "@/lib/session";
 import { LeaderboardTable, type LeaderboardRow } from "@/components/LeaderboardTable";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { startOfWeek } from "@/lib/dates";
 import { CATEGORIES } from "@/lib/scoring";
 
@@ -94,18 +95,33 @@ export default async function LeaderboardsPage({
   return (
     <div className="wrap-wide pt-6 pb-16">
       <h1 className="display text-4xl sm:text-5xl">Boards.</h1>
-      <p className="mt-1 text-muted">Reality keeps score. We just rank it.</p>
 
-      {!userId && (
-        <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 bg-ink text-paper">
-          <p className="text-sm">
-            Curious? <span className="font-semibold">Sign up to put your name on the board.</span>
+      {/* Prestige hero — black breathing card carrying the Edge definition.
+          Same visual language as the dashboard streak card. */}
+      <div className="streak-card mt-4 border border-paper/10">
+        <div className="relative p-6 sm:p-8">
+          <div className="flex items-center gap-2">
+            <p className="label text-accent">Edge</p>
+            <InfoTooltip label="What is Edge?">
+              Edge increases when your predictions are correct relative to your
+              confidence.
+            </InfoTooltip>
+          </div>
+          <h2 className="display mt-2 text-3xl sm:text-4xl">
+            Reality keeps score.<br />
+            Edge is the difference.
+          </h2>
+          <p className="mt-3 max-w-md text-sm text-paper/70">
+            Earned when your confidence meets reality. The board ranks the
+            sharpest.
           </p>
-          <Link href="/signup" className="btn-accent">
-            Sign up
-          </Link>
+          {!userId && (
+            <Link href="/signup" className="btn-accent mt-5 inline-flex">
+              Sign up
+            </Link>
+          )}
         </div>
-      )}
+      </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
         <Tab href="/leaderboards?tab=week" active={tab === "week"} label="This week" />

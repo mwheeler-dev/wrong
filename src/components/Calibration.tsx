@@ -4,6 +4,7 @@ import {
   type CalibrationRow,
 } from "@/lib/calibration";
 import type { Confidence } from "@/lib/scoring";
+import { InfoTooltip } from "./InfoTooltip";
 
 type Props = {
   rows: CalibrationRow[];
@@ -13,14 +14,27 @@ type Props = {
 export function Calibration({ rows, verdict }: Props) {
   return (
     <div className="card">
-      <div className="flex items-baseline justify-between">
-        <p className="label">Calibration</p>
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <p className="label">Calibration</p>
+          <InfoTooltip label="What is Calibration?">
+            Calibration compares your confidence levels against actual
+            outcomes.
+          </InfoTooltip>
+        </div>
         <p className="text-[11px] uppercase tracking-wider text-muted">
           accuracy vs confidence
         </p>
       </div>
 
-      <p className="mt-2 text-sm text-muted">{verdict}</p>
+      {/* Plain-English explainer — held below the eyebrow so anyone who
+          doesn't know the term gets it on first read. */}
+      <p className="mt-1 text-sm text-ink/80">
+        The gap between how sure you are and how often you’re actually right.
+      </p>
+
+      {/* Dynamic verdict — always references "confidence" explicitly */}
+      <p className="mt-3 text-sm text-muted">{verdict}</p>
 
       <div className="mt-6 divide-y divide-line">
         {rows.map((r) => (
@@ -29,8 +43,8 @@ export function Calibration({ rows, verdict }: Props) {
       </div>
 
       <p className="mt-4 text-xs text-muted">
-        A well-calibrated forecaster who says 80% should be right about 80% of
-        the time.
+        A well-calibrated forecaster who says 80% confidence should be right
+        about 80% of the time.
       </p>
     </div>
   );

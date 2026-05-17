@@ -28,12 +28,30 @@ export function LeaderboardTable({ rows, highlightUserId }: Props) {
       <ul>
         {rows.map((r, i) => {
           const isYou = highlightUserId && r.userId === highlightUserId;
+          const isFirst = i === 0;
+          // #1 row gets a subtle lime tint + a left accent bar. We avoid
+          // anything stronger so the list still reads as a list — the goal is
+          // prestige, not a crown jewel.
+          const rowBg = isYou
+            ? "bg-accent/30"
+            : isFirst
+              ? "bg-gradient-to-r from-accent/12 via-accent/6 to-transparent"
+              : "";
+          const rankClass = isFirst
+            ? "text-accent drop-shadow-[0_0_8px_rgba(217,255,0,0.55)]"
+            : "text-ink";
           return (
             <li
               key={r.userId}
-              className={`grid grid-cols-[2.5rem_1fr_4rem_4rem_4rem] gap-2 border-b border-line px-4 py-3 last:border-b-0 ${isYou ? "bg-accent/30" : ""}`}
+              className={`relative grid grid-cols-[2.5rem_1fr_4rem_4rem_4rem] gap-2 border-b border-line px-4 py-3 last:border-b-0 ${rowBg}`}
             >
-              <div className="font-bold tabular-nums">{i + 1}</div>
+              {isFirst && (
+                <span
+                  aria-hidden
+                  className="absolute left-0 top-0 h-full w-[3px] bg-accent shadow-[0_0_12px_rgba(217,255,0,0.55)]"
+                />
+              )}
+              <div className={`font-bold tabular-nums ${rankClass}`}>{i + 1}</div>
               <div className="truncate">
                 {r.name}
                 {isYou && <span className="ml-2 text-xs uppercase tracking-wider text-muted">you</span>}

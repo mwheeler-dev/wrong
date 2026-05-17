@@ -76,6 +76,9 @@ export function Streak({ stats, footer }: Props) {
                 / {stats.todayTarget}
               </span>
             </p>
+            <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-paper/55">
+              predictions today
+            </p>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper/15">
               <div
                 className="streak-progress-fill h-full bg-accent transition-all"

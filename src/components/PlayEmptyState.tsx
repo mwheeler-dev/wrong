@@ -80,11 +80,14 @@ export function PlayEmptyState({
       {/* Today's progress */}
       <div className="card mt-3">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="label">Today’s calls</p>
+          <p className="label">Today’s predictions</p>
           <p className="display text-2xl tabular-nums">
             {todayCount} / {DAILY_CAP}
           </p>
         </div>
+        <p className="mt-0.5 text-[11px] uppercase tracking-wider text-muted">
+          predictions locked in today
+        </p>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink/10">
           <div
             className="h-full bg-accent shadow-[0_0_12px_rgba(217,255,0,0.5)] transition-all"

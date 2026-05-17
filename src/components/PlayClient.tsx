@@ -398,7 +398,10 @@ function DoneScreen({
                 / {dailyCap}
               </span>
             </p>
-            <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-accent">
+            <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-paper/55">
+              predictions today
+            </p>
+            <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-accent">
               <CheckCircleIcon className="h-3.5 w-3.5" />
               Day complete.
             </p>

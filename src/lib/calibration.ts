@@ -152,10 +152,14 @@ export function calibrationVerdict(rows: CalibrationRow[]): string {
   const candidates = withData.filter((r) => r.total >= 3);
   if (candidates.length === 0) return "Calibration loading. Keep predicting.";
 
+  // Every verdict line ALWAYS spells out "confidence" so the user is never
+  // left guessing what the percentage refers to.
   const worst = [...candidates].sort((a, b) => a.gap - b.gap)[0];
-  if (worst.gap >= -5) return "You’re well calibrated. Suspicious.";
+  if (worst.gap >= -5) {
+    return "Your confidence and reality agree. Suspicious.";
+  }
   if (worst.gap <= -15) {
     return `You speak with ${worst.level}% confidence. Reality only agrees ${worst.accuracy}% of the time.`;
   }
-  return `At ${worst.level}%, you trust yourself more than reality does.`;
+  return `At ${worst.level}% confidence, you trust yourself more than reality does.`;
 }
