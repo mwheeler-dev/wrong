@@ -21,7 +21,7 @@ export function LeaderboardTable({ rows, highlightUserId }: Props) {
       <div className="grid grid-cols-[2.5rem_1fr_4rem_4rem_4rem] gap-2 border-b border-line bg-ink/[0.02] px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
         <div>#</div>
         <div>User</div>
-        <div className="text-right">Score</div>
+        <div className="text-right">Edge</div>
         <div className="text-right">Acc.</div>
         <div className="text-right">Avg.</div>
       </div>

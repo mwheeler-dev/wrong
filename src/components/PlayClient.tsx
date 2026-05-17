@@ -9,6 +9,9 @@ import { Timer } from "./Timer";
 import { ResultCard, type CrowdStats } from "./ResultCard";
 import { Disclaimer } from "./Disclaimer";
 import { Countdown } from "./Countdown";
+import { FlameIcon } from "./icons/FlameIcon";
+import { TrophyIcon } from "./icons/TrophyIcon";
+import { CheckCircleIcon } from "./icons/CheckCircleIcon";
 import type { Answer, Confidence } from "@/lib/scoring";
 
 type Props = {
@@ -383,16 +386,35 @@ function DoneScreen({
         Now reality decides. Tomorrow brings new predictions.
       </p>
 
-      {/* Countdown — same component as the server empty state, so the visual
-          rhythm is identical whether you land here mid-session or land on
-          /play with the cap already reached. */}
-      <div className="card mt-8 bg-ink text-paper">
+      {/* Day-complete prestige card — flame + trophy, breathing lime halo. */}
+      <div className="streak-card mt-8 border border-paper/10">
+        <div className="relative flex items-center gap-4 p-5 sm:p-6">
+          <FlameIcon className="streak-flame h-12 w-12 shrink-0 text-accent sm:h-14 sm:w-14" />
+          <div className="min-w-0 flex-1">
+            <p className="label text-accent">Today</p>
+            <p className="display streak-number-glow mt-1 text-3xl tabular-nums sm:text-4xl">
+              {todayCount}
+              <span className="ml-2 text-sm font-bold text-paper/60 sm:text-base">
+                / {dailyCap}
+              </span>
+            </p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-accent">
+              <CheckCircleIcon className="h-3.5 w-3.5" />
+              Day complete.
+            </p>
+          </div>
+          <TrophyIcon className="streak-trophy h-12 w-12 shrink-0 text-accent sm:h-14 sm:w-14" />
+        </div>
+      </div>
+
+      {/* Countdown card */}
+      <div className="card mt-3 bg-ink text-paper">
         <p className="label text-paper/60">Reality resets in</p>
         <div className="display mt-2 text-5xl sm:text-6xl">
           <Countdown targetIso={nextMidnightIso} />
         </div>
         <p className="mt-3 text-sm text-paper/70">
-          {todayCount} / {dailyCap} locked in today.
+          New predictions every midnight, your time.
         </p>
       </div>
 

@@ -100,3 +100,96 @@ input, select, textarea {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
 }
+
+/* ─── Streak card prestige treatment ─────────────────────────────────────
+   Restrained: ambient corner gradients (no per-frame work), a slow card
+   "breathing" glow, and a slightly more energetic flame pulse. All effects
+   use the lime accent — no extra palette. Total: 3 keyframe animations,
+   each at 3–6s cycles, so the page never feels busy.
+*/
+
+@keyframes streak-breath {
+  0%, 100% {
+    box-shadow:
+      0 0 60px rgba(217, 255, 0, 0.08),
+      inset 0 0 0 1px rgba(217, 255, 0, 0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 90px rgba(217, 255, 0, 0.14),
+      inset 0 0 0 1px rgba(217, 255, 0, 0.14);
+  }
+}
+
+@keyframes streak-flame {
+  0%, 100% {
+    transform: scale(1);
+    filter:
+      drop-shadow(0 0 10px rgba(217, 255, 0, 0.45))
+      drop-shadow(0 0 22px rgba(217, 255, 0, 0.22));
+  }
+  50% {
+    transform: scale(1.05);
+    filter:
+      drop-shadow(0 0 14px rgba(217, 255, 0, 0.65))
+      drop-shadow(0 0 32px rgba(217, 255, 0, 0.3));
+  }
+}
+
+@keyframes streak-trophy {
+  0%, 100% {
+    filter:
+      drop-shadow(0 0 8px rgba(217, 255, 0, 0.4))
+      drop-shadow(0 0 18px rgba(217, 255, 0, 0.18));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 12px rgba(217, 255, 0, 0.55))
+      drop-shadow(0 0 24px rgba(217, 255, 0, 0.24));
+  }
+}
+
+@layer components {
+  /* Black card with breathing lime halo + soft corner accents. */
+  .streak-card {
+    @apply relative overflow-hidden rounded-3xl bg-ink text-paper;
+    animation: streak-breath 6s ease-in-out infinite;
+  }
+  /* Ambient lime gradients in the corners. Pure CSS, no JS, no per-frame paint. */
+  .streak-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      radial-gradient(circle at 12% 18%, rgba(217, 255, 0, 0.08) 0%, transparent 38%),
+      radial-gradient(circle at 88% 82%, rgba(217, 255, 0, 0.05) 0%, transparent 42%);
+  }
+  /* Pulsing flame glyph. */
+  .streak-flame {
+    animation: streak-flame 3.4s ease-in-out infinite;
+    transform-origin: 50% 70%;
+  }
+  /* Trophy glow when day complete. Quieter than the flame. */
+  .streak-trophy {
+    animation: streak-trophy 4.2s ease-in-out infinite;
+  }
+  /* Number readout: subtle text-shadow that picks up the lime breathing. */
+  .streak-number-glow {
+    text-shadow: 0 0 28px rgba(217, 255, 0, 0.25);
+  }
+  /* Progress bar fill — accent + glow so it reads as "energized". */
+  .streak-progress-fill {
+    box-shadow: 0 0 14px rgba(217, 255, 0, 0.55);
+  }
+}
+
+/* Respect reduced-motion preference — kill all streak animations. */
+@media (prefers-reduced-motion: reduce) {
+  .streak-card,
+  .streak-flame,
+  .streak-trophy,
+  .pulse-dot {
+    animation: none !important;
+  }
+}

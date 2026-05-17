@@ -130,12 +130,31 @@ export default async function DashboardPage() {
 
       <Link href="/play" className="btn-accent mt-4 inline-flex w-full sm:hidden">Play today</Link>
 
-      <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <ScoreCard label="Today" value={todayScore >= 0 ? `+${todayScore}` : todayScore} emphasized />
-        <ScoreCard label="This week" value={weekScore >= 0 ? `+${weekScore}` : weekScore} />
-        <ScoreCard label="All time" value={allTimeScore >= 0 ? `+${allTimeScore}` : allTimeScore} />
-        <ScoreCard label="Accuracy" value={accuracy == null ? "—" : `${accuracy}%`} hint={`${resolved.length} resolved`} />
-        <ScoreCard label="Avg. confidence" value={avgConfidence == null ? "—" : `${avgConfidence}%`} hint={`${predictions.length} predictions`} />
+      <p className="mt-10 label">Edge</p>
+      <section className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <ScoreCard
+          label="Today’s Edge"
+          value={todayScore >= 0 ? `+${todayScore}` : todayScore}
+          emphasized
+        />
+        <ScoreCard
+          label="This week’s Edge"
+          value={weekScore >= 0 ? `+${weekScore}` : weekScore}
+        />
+        <ScoreCard
+          label="All-time Edge"
+          value={allTimeScore >= 0 ? `+${allTimeScore}` : allTimeScore}
+        />
+        <ScoreCard
+          label="Accuracy"
+          value={accuracy == null ? "—" : `${accuracy}%`}
+          hint={`${resolved.length} resolved`}
+        />
+        <ScoreCard
+          label="Avg. confidence"
+          value={avgConfidence == null ? "—" : `${avgConfidence}%`}
+          hint={`${predictions.length} predictions`}
+        />
         <ScoreCard
           label="Most dangerous"
           value={dangerousLevel == null ? "—" : `${dangerousLevel}%`}

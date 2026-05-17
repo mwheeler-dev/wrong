@@ -40,9 +40,14 @@ export function ResultCard({ answer, confidence, correctAnswer, score, crowd, fe
               <div className="text-[11px] uppercase tracking-wider opacity-70">Reality says</div>
               <div className="display mt-1 text-4xl sm:text-5xl">{correctAnswer}</div>
             </div>
-            <div className={`display text-4xl sm:text-5xl ${positive ? "text-accent" : "text-bad"}`}>
-              {positive ? "+" : ""}
-              {score}
+            <div className="text-right">
+              <div className={`display text-4xl sm:text-5xl ${positive ? "text-accent" : "text-bad"}`}>
+                {positive ? "+" : ""}
+                {score}
+              </div>
+              <div className="mt-1 text-[11px] uppercase tracking-wider opacity-70">
+                Edge
+              </div>
             </div>
           </div>
         ) : (
