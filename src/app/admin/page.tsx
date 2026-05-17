@@ -36,8 +36,22 @@ export default async function AdminPage() {
       <h1 className="display text-4xl sm:text-5xl">Admin.</h1>
       <p className="mt-1 text-muted">Author. Publish. Resolve. Reality is your job here.</p>
 
-      <section className="mt-6">
+      <section className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <PublishBatchButton scheduledCount={scheduled.length} />
+        <a
+          href="/studio"
+          className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-ink p-5 text-paper hover:opacity-95"
+        >
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-paper/60">
+              Card studio
+            </p>
+            <p className="display mt-1 text-2xl">Make cards →</p>
+            <p className="mt-1 text-xs text-paper/70">
+              TikTok / IG carousels. Edit, preview, export PNG.
+            </p>
+          </div>
+        </a>
       </section>
 
       <section className="mt-8">

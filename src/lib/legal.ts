@@ -2,7 +2,7 @@
 // (especially CONTACT_EMAIL) without touching individual pages.
 
 export const APP_NAME = "Wrong.";
-export const CONTACT_EMAIL = "hello@wrong.app";
+export const CONTACT_EMAIL = "contact@wrong-app.com";
 export const COPYRIGHT_YEAR = 2026;
 export const LEGAL_LAST_UPDATED = "May 17, 2026";
 

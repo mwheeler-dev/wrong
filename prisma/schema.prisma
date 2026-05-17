@@ -68,3 +68,17 @@ model DailyReflection {
 
   @@unique([userId, date])
 }
+
+// Admin-editable card decks for /studio. The slides array is stored as
+// JSONB (Postgres `Json`) so we don't have to model every slide variant
+// as its own table — the variants change cheaply this way. Validated
+// server-side before insert in src/cards/validation.ts.
+model CardDeck {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  title      String
+  notes      String?
+  slidesJson Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

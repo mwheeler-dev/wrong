@@ -8,3 +8,4 @@ prisma/dev.db-journal
 *.log
 .DS_Store
 .env
+out/

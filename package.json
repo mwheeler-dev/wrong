@@ -11,6 +11,7 @@
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
+    "cards:export": "tsx scripts/cards/export.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
