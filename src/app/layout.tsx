@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
+import { Footer } from "@/components/Footer";
 import { getCurrentUser, isAdmin } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -21,9 +22,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en">
-      <body className="min-h-dvh">
+      <body className="flex min-h-dvh flex-col">
         <Nav user={user} isAdmin={admin} />
-        <main className="pb-20 pt-4">{children}</main>
+        {/* flex-1 lets short pages push the footer to the viewport bottom */}
+        <main className="flex-1 pb-12 pt-4">{children}</main>
+        <Footer />
       </body>
     </html>
   );

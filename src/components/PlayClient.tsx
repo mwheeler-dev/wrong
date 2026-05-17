@@ -7,6 +7,7 @@ import { QuestionCard, type QuestionForPlay } from "./QuestionCard";
 import { ConfidenceSelector } from "./ConfidenceSelector";
 import { Timer } from "./Timer";
 import { ResultCard, type CrowdStats } from "./ResultCard";
+import { Disclaimer } from "./Disclaimer";
 import type { Answer, Confidence } from "@/lib/scoring";
 
 type Props = {
@@ -360,6 +361,8 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
           </>
         ) : null}
       </div>
+
+      <Disclaimer className="mt-8" />
     </div>
   );
 }
