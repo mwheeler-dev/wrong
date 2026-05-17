@@ -1,3 +1,5 @@
+import { dayKeyInTz } from "./timezone";
+
 type PredictionRow = {
   id: string;
   createdAt: Date;
@@ -30,22 +32,21 @@ export type JournalDay = {
   }[];
 };
 
-function localDayKey(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
+/**
+ * Groups a user's predictions and reflections into per-day buckets, where
+ * "day" is the user's LOCAL calendar day in `timeZone`. Used by the
+ * dashboard journal section.
+ */
 export function buildJournal(
   predictions: PredictionRow[],
   reflections: ReflectionRow[],
-  opts: { limitDays?: number } = {},
+  opts: { limitDays?: number; timeZone: string },
 ): JournalDay[] {
+  const tz = opts.timeZone;
   const byDay = new Map<string, JournalDay>();
 
   for (const p of predictions) {
-    const k = localDayKey(p.createdAt);
+    const k = dayKeyInTz(p.createdAt, tz);
     let entry = byDay.get(k);
     if (!entry) {
       entry = { date: k, reflection: null, predictions: [] };
@@ -63,7 +64,7 @@ export function buildJournal(
   }
 
   for (const r of reflections) {
-    const k = localDayKey(r.date);
+    const k = dayKeyInTz(r.date, tz);
     let entry = byDay.get(k);
     if (!entry) {
       entry = { date: k, reflection: null, predictions: [] };

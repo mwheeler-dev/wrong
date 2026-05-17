@@ -12,6 +12,9 @@ model User {
   name         String
   email        String            @unique
   passwordHash String
+  // IANA timezone string e.g. "America/Los_Angeles". Nullable so existing
+  // rows are valid without backfill — callers default to a fallback.
+  timezone     String?
   createdAt    DateTime          @default(now())
   predictions  Prediction[]
   reflections  DailyReflection[]

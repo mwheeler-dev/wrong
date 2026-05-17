@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUserId } from "@/lib/session";
+import { getCurrentUser, getUserTimezone } from "@/lib/session";
 import { CONFIDENCE_LEVELS, scoreFor, type Answer, type Confidence } from "@/lib/scoring";
 import { resultFeedback } from "@/lib/feedback";
 import { checkRoundDeadline, verifyRoundToken } from "@/lib/round";
+import { DAILY_CAP, countTodaysPredictions } from "@/lib/daily";
 
 export async function POST(req: Request) {
-  const userId = await getCurrentUserId();
-  if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  // We need the user's timezone (not just id) so the daily count we return
+  // here is computed against THEIR local day — same window /play uses.
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const userId = user.id;
+  const timeZone = getUserTimezone(user);
 
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
@@ -35,20 +40,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid round token" }, { status: 401 });
   }
 
-  // DUPLICATE CHECK FIRST. If a prediction for (userId, questionId) already
-  // exists, return 409 unconditionally — even if the round-token deadline has
-  // also expired. The client uses 409 as the "already answered" signal to
-  // record the id locally and advance without inflating progress. Returning
-  // 408 here instead would leave the client stuck.
+  // Duplicate check first so a re-submit always gets 409 — even past the
+  // round-token deadline. We include the current todayCount in the body so
+  // the client can correct its local state without an extra round trip.
   const existing = await prisma.prediction.findUnique({
     where: { userId_questionId: { userId, questionId } },
     select: { id: true },
   });
   if (existing) {
-    return NextResponse.json({ error: "Already answered" }, { status: 409 });
+    const todayCount = await countTodaysPredictions(userId, timeZone);
+    return NextResponse.json(
+      { error: "Already answered", todayCount, dailyCap: DAILY_CAP },
+      { status: 409 },
+    );
   }
 
-  // Now enforce the timer for fresh attempts.
   const deadlineCheck = checkRoundDeadline({
     claims,
     questionId,
@@ -95,16 +101,17 @@ export async function POST(req: Request) {
       },
     });
   } catch (err: unknown) {
-    // Race: another request landed a prediction between our findUnique and
-    // create (unique constraint on @@unique([userId, questionId]) trips this).
-    // Surface as 409 so the client treats it as already answered.
     const isUniqueError =
       typeof err === "object" &&
       err !== null &&
       "code" in err &&
       (err as { code?: string }).code === "P2002";
     if (isUniqueError) {
-      return NextResponse.json({ error: "Already answered" }, { status: 409 });
+      const todayCount = await countTodaysPredictions(userId, timeZone);
+      return NextResponse.json(
+        { error: "Already answered", todayCount, dailyCap: DAILY_CAP },
+        { status: 409 },
+      );
     }
     throw err;
   }
@@ -125,10 +132,12 @@ export async function POST(req: Request) {
   const isCorrect = correct != null && answer === correct;
   const feedback = resultFeedback({ correct: isCorrect, confidence });
 
-  // Invalidate the Router Cache for /play so that any future navigation
-  // back to the round (e.g., user clicks "You" then "Play" mid-round) reads a
-  // fresh server-rendered batch with this prediction reflected in the
-  // answered-IDs set, instead of serving a stale RSC payload.
+  // AUTHORITATIVE daily count — taken AFTER the create so it includes the
+  // prediction we just inserted. The PlayClient treats this as the source of
+  // truth and replaces its local count with it. No more "server + local"
+  // double-counting.
+  const todayCount = await countTodaysPredictions(userId, timeZone);
+
   revalidatePath("/play");
 
   return NextResponse.json({
@@ -147,5 +156,7 @@ export async function POST(req: Request) {
       totalPredictions: total,
     },
     feedback,
+    todayCount,
+    dailyCap: DAILY_CAP,
   });
 }

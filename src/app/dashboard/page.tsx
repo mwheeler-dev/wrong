@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, getUserTimezone } from "@/lib/session";
 import { ScoreCard } from "@/components/ScoreCard";
 import { Streak } from "@/components/Streak";
 import { Calibration } from "@/components/Calibration";
@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const timeZone = getUserTimezone(user);
 
   const [predictions, reflections] = await Promise.all([
     prisma.prediction.findMany({
@@ -44,9 +45,9 @@ export default async function DashboardPage() {
   const resolved = predictions.filter((p) => p.score != null);
   const pending = predictions.filter((p) => p.score == null);
 
-  const todayStart = startOfToday();
-  const todayEnd = endOfToday();
-  const weekStart = startOfWeek();
+  const todayStart = startOfToday(timeZone);
+  const todayEnd = endOfToday(timeZone);
+  const weekStart = startOfWeek(timeZone);
 
   const todayScore = resolved
     .filter((p) => p.resolvedAt && p.resolvedAt >= todayStart && p.resolvedAt <= todayEnd)
@@ -84,7 +85,10 @@ export default async function DashboardPage() {
   }
 
   // Streak
-  const streakStats = computeStreak(predictions.map((p) => p.createdAt));
+  const streakStats = computeStreak(
+    predictions.map((p) => p.createdAt),
+    timeZone,
+  );
 
   // Calibration
   const calibrationRows = computeCalibration(
@@ -107,7 +111,7 @@ export default async function DashboardPage() {
       },
     })),
     reflections.map((r) => ({ date: r.date, text: r.text })),
-    { limitDays: 14 },
+    { limitDays: 14, timeZone },
   );
 
   return (
@@ -155,7 +159,7 @@ export default async function DashboardPage() {
               <div className="flex items-center justify-between gap-2">
                 <span className="pill">{p.question.category}</span>
                 <span className="text-[11px] uppercase tracking-wider text-muted">
-                  resolves {formatShortDate(p.question.resolutionDate)}
+                  resolves {formatShortDate(p.question.resolutionDate, timeZone)}
                 </span>
               </div>
               <p className="mt-2 font-semibold">{p.question.text}</p>

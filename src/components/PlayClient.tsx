@@ -8,12 +8,19 @@ import { ConfidenceSelector } from "./ConfidenceSelector";
 import { Timer } from "./Timer";
 import { ResultCard, type CrowdStats } from "./ResultCard";
 import { Disclaimer } from "./Disclaimer";
+import { Countdown } from "./Countdown";
 import type { Answer, Confidence } from "@/lib/scoring";
 
 type Props = {
   questions: QuestionForPlay[];
-  /** Question IDs (subset of `questions`) the user has already answered server-side. */
+  /** Question IDs (subset of `questions`) the user has already answered. */
   initialAnsweredIds: string[];
+  /** Predictions the user has already made today (before this session). */
+  todayProgress: number;
+  /** Hard cap on predictions per day. */
+  dailyCap: number;
+  /** The user's next local midnight as an ISO string (UTC instant). */
+  nextMidnightIso: string;
 };
 
 type SubmitResponse = {
@@ -23,42 +30,36 @@ type SubmitResponse = {
   feedback: string;
 };
 
-export function PlayClient({ questions, initialAnsweredIds }: Props) {
+export function PlayClient({
+  questions,
+  initialAnsweredIds,
+  todayProgress,
+  dailyCap,
+  nextMidnightIso,
+}: Props) {
   const router = useRouter();
 
-  // SOURCE OF TRUTH for progress.
-  // - Always a Set<string>, so adding the same id multiple times is idempotent.
-  // - Seeded from the server's snapshot of today's answered ids on mount.
-  // - Grown on a successful predict (200) AND on a duplicate-detected predict
-  //   (409) — both routes through the same setter, both go through Set
-  //   semantics. Re-answering the same question can NEVER inflate the count.
+  // Source of truth for in-session progress. Set semantics so duplicate
+  // submits can't inflate the counter. Seeded from any IDs the server flagged
+  // as already-answered (the server pre-filters today, but we keep the prop
+  // for defense if a stale RSC payload sneaks one through).
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(
     () => new Set(initialAnsweredIds),
   );
-
-  // Session-only "I gave up on this for now" set. Used purely so that the UI
-  // can advance past a question whose timer expired without persisting a
-  // prediction. NOT counted in progress. Wiped on remount, so on the next
-  // /play visit, skipped questions reappear (per spec point 6: active = first
-  // not in answeredIds).
   const [skippedIds, setSkippedIds] = useState<Set<string>>(() => new Set());
 
-  // Current selections / submission state
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [confidence, setConfidence] = useState<Confidence | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SubmitResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Round token covering the questions remaining at mount time
   const [roundToken, setRoundToken] = useState<string | null>(null);
   const tokenRequestedRef = useRef(false);
 
-  // Reflection state for the completion screen
   const [reflection, setReflection] = useState("");
   const [reflectionSaved, setReflectionSaved] = useState(false);
 
-  // Idempotent helper: add a single id to answeredIds, no-op if already in.
   function recordAnswered(id: string) {
     setAnsweredIds((prev) => {
       if (prev.has(id)) return prev;
@@ -68,10 +69,6 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
     });
   }
 
-  // Additively merge any newer server-known answered ids into local state.
-  // We never REMOVE locally. If router cache serves a momentarily stale
-  // payload (e.g. immediately after a predict before revalidate propagates),
-  // local progress survives the merge.
   useEffect(() => {
     if (initialAnsweredIds.length === 0) return;
     setAnsweredIds((prev) => {
@@ -87,11 +84,6 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
     });
   }, [initialAnsweredIds]);
 
-  // ── DERIVED STATE ──────────────────────────────────────────────────────
-  // `current` is computed strictly from the spec: the first question in
-  // today's batch whose id is not in answeredIds. Within a session we also
-  // exclude `skippedIds` so the UI doesn't loop on a question whose timer
-  // expired — but `skippedIds` does not affect progress or persistence.
   const passedIds = useMemo(() => {
     const s = new Set<string>(answeredIds);
     for (const id of skippedIds) s.add(id);
@@ -104,18 +96,18 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
   );
   const current = remaining[0] ?? null;
 
-  const total = questions.length;
-  // PROGRESS DEFINITION — used by both the "X / total" label and the bar.
-  // Equal to the Streak/dashboard definition: count of UNIQUE questionIds in
-  // today's batch the user has actually predicted on.
-  const uniqueAnsweredCount = answeredIds.size;
-  const progressPct = total === 0 ? 0 : (uniqueAnsweredCount / total) * 100;
-  const allAnswered = total > 0 && uniqueAnsweredCount >= total;
+  // ── DAILY-CAP-AWARE PROGRESS ──────────────────────────────────────────
+  // SERVER-AUTHORITATIVE today count. Seeded from the prop on mount, then
+  // replaced by the value returned in each predict response. We never sum
+  // a server count with a local set — that's how the count diverged from
+  // the dashboard and falsely triggered DoneScreen at 5 real saves.
+  const [todayCount, setTodayCount] = useState<number>(todayProgress);
+  const totalToday = todayCount;
+  const progressPct = dailyCap === 0 ? 0 : Math.min(100, (totalToday / dailyCap) * 100);
+  const allDoneToday = totalToday >= dailyCap;
 
-  // ── ROUND TOKEN ────────────────────────────────────────────────────────
-  // Request once at mount, signed for the questions that are unanswered at
-  // mount time. Per-question deadlines on the server are relative to this
-  // token's iat, so the first question always gets a fresh 30s window.
+  // Mint the round token once at mount, signed for the unanswered subset.
+  // First question gets a fresh 30s deadline because the token's iat is "now".
   useEffect(() => {
     if (tokenRequestedRef.current) return;
     tokenRequestedRef.current = true;
@@ -139,34 +131,20 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
           setRoundToken(data.roundToken);
         }
       } catch {
-        // Submission will surface a "missing round token" error if this fails.
+        // surfaces as "missing round token" on submit
       }
     })();
-    // run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── EARLY SCREENS ──────────────────────────────────────────────────────
-  // 0 published today
-  if (total === 0) {
-    return (
-      <div className="wrap pt-12">
-        <h1 className="display text-4xl">Nothing to predict.</h1>
-        <p className="mt-3 text-muted">
-          You&apos;re all caught up. Reality is busy resolving.
-        </p>
-        <Link href="/dashboard" className="btn-outline mt-6">
-          See your dashboard
-        </Link>
-      </div>
-    );
-  }
-
-  // All unique questions answered, and the user has dismissed the last result
-  // (or never opened one because they returned to /play after finishing).
-  if (allAnswered && !result) {
+  // ── COMPLETION SCREENS ────────────────────────────────────────────────
+  // Done for the day → DoneScreen with reflection prompt + countdown.
+  if (allDoneToday && !result) {
     return (
       <DoneScreen
+        todayCount={totalToday}
+        dailyCap={dailyCap}
+        nextMidnightIso={nextMidnightIso}
         reflection={reflection}
         setReflection={setReflection}
         reflectionSaved={reflectionSaved}
@@ -175,22 +153,20 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
     );
   }
 
-  // No current and no result, but not yet at 10/10 → everything remaining was
-  // skipped this session. Offer to bring them back.
+  // Session-only edge: every remaining question was skipped (timer expired).
+  // Offer to bring them back rather than leaving the user stuck.
   if (!current && !result) {
     return (
       <div className="wrap pt-12">
         <h1 className="display text-4xl">A few left.</h1>
         <p className="mt-3 text-muted">
-          {uniqueAnsweredCount} of {total} answered. The rest are still open —
-          bring them back to try again.
+          {totalToday} of {dailyCap} answered today. The rest of this batch was
+          skipped — bring them back to try again.
         </p>
         <button
           className="btn-accent mt-6"
           onClick={() => {
             setSkippedIds(new Set());
-            // Old token's deadlines may have lapsed — mint a fresh one for
-            // the now-unanswered subset.
             const fresh = questions.filter((q) => !answeredIds.has(q.id));
             if (fresh.length === 0) return;
             setRoundToken(null);
@@ -241,30 +217,33 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        // Duplicate submission: the server already has a prediction for this
-        // (userId, questionId). Treat as already answered, do NOT show a
-        // result card (we have no fresh response data for it), record the id
-        // idempotently (Set semantics → never double-counts), and move on.
         if (res.status === 409) {
+          // Duplicate. The server already has this prediction; it returned
+          // the current authoritative count so we sync without an extra
+          // round trip. recordAnswered is a no-op for IDs already in the set.
           recordAnswered(current.id);
-          // Refresh the route cache so the next navigation to /play sees the
-          // accurate answered set.
+          if (typeof data.todayCount === "number") {
+            setTodayCount(data.todayCount);
+          }
           router.refresh();
           setSubmitting(false);
           goNext();
           return;
         }
+        // Any non-2xx, non-409 response means the prediction did NOT save.
+        // Do NOT touch answeredIds or todayCount — local progress must
+        // never count an attempt that failed on the server.
         setError(data.error || "Could not save your prediction.");
         setSubmitting(false);
         return;
       }
-
-      // Success.
+      // 2xx success. The server already counted the new prediction; trust
+      // its `todayCount` rather than incrementing locally.
       recordAnswered(current.id);
+      if (typeof data.todayCount === "number") {
+        setTodayCount(data.todayCount);
+      }
       setResult(data);
-      // Keep the Router Cache for /play in sync so a back-navigation from
-      // any other route returns to the correct next question. The server
-      // also calls revalidatePath('/play') as a server-side backstop.
       router.refresh();
     } catch {
       setError("Network error.");
@@ -275,9 +254,6 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
 
   function handleTimerExpire() {
     if (!current || result) return;
-    // Skip this question for the rest of this session. Does NOT touch
-    // answeredIds and therefore does NOT touch progress. The question will
-    // reappear on remount because it remains absent from answeredIds.
     setSkippedIds((prev) => {
       if (prev.has(current.id)) return prev;
       const next = new Set(prev);
@@ -289,10 +265,10 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
 
   return (
     <div className="wrap pt-3 sm:pt-4">
-      {/* Progress strictly = unique answered count. Matches Streak. */}
+      {/* Progress = today's unique predictions across all sessions */}
       <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-muted">
         <span className="tabular-nums">
-          {uniqueAnsweredCount} / {total}
+          {totalToday} / {dailyCap}
         </span>
         <span>How wrong are you today?</span>
       </div>
@@ -328,7 +304,7 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
               onClick={goNext}
               className="btn-primary mt-3 w-full text-base sm:mt-4"
             >
-              {allAnswered ? "Finish" : "Next question"}
+              {allDoneToday ? "Finish" : "Next question"}
             </button>
           </>
         ) : current ? (
@@ -368,11 +344,17 @@ export function PlayClient({ questions, initialAnsweredIds }: Props) {
 }
 
 function DoneScreen({
+  todayCount,
+  dailyCap,
+  nextMidnightIso,
   reflection,
   setReflection,
   reflectionSaved,
   setReflectionSaved,
 }: {
+  todayCount: number;
+  dailyCap: number;
+  nextMidnightIso: string;
   reflection: string;
   setReflection: (s: string) => void;
   reflectionSaved: boolean;
@@ -393,12 +375,28 @@ function DoneScreen({
 
   return (
     <div className="wrap pt-8 sm:pt-10">
-      <h1 className="display text-4xl sm:text-5xl">Locked in.</h1>
+      <p className="label">Today</p>
+      <h1 className="display mt-3 text-4xl sm:text-5xl">
+        You’ve made your calls.
+      </h1>
       <p className="mt-3 text-muted">
-        Reality will get back to you. Most questions resolve within a few days.
+        Now reality decides. Tomorrow brings new predictions.
       </p>
 
-      <div className="card mt-8">
+      {/* Countdown — same component as the server empty state, so the visual
+          rhythm is identical whether you land here mid-session or land on
+          /play with the cap already reached. */}
+      <div className="card mt-8 bg-ink text-paper">
+        <p className="label text-paper/60">Reality resets in</p>
+        <div className="display mt-2 text-5xl sm:text-6xl">
+          <Countdown targetIso={nextMidnightIso} />
+        </div>
+        <p className="mt-3 text-sm text-paper/70">
+          {todayCount} / {dailyCap} locked in today.
+        </p>
+      </div>
+
+      <div className="card mt-3">
         <div className="label">One last thing</div>
         <h2 className="display mt-1 text-2xl sm:text-3xl">
           What would change your mind?

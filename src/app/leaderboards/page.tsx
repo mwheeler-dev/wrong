@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUserId } from "@/lib/session";
+import { getCurrentUser, getUserTimezone } from "@/lib/session";
 import { LeaderboardTable, type LeaderboardRow } from "@/components/LeaderboardTable";
 import { startOfWeek } from "@/lib/dates";
 import { CATEGORIES } from "@/lib/scoring";
@@ -71,7 +71,9 @@ export default async function LeaderboardsPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const userId = await getCurrentUserId();
+  const user = await getCurrentUser();
+  const userId = user?.id ?? null;
+  const timeZone = getUserTimezone(user);
   const tab = searchParams.tab === "all" || searchParams.tab === "category" ? searchParams.tab : "week";
   const category =
     searchParams.category &&
@@ -81,7 +83,8 @@ export default async function LeaderboardsPage({
 
   let rows: LeaderboardRow[] = [];
   if (tab === "week") {
-    rows = await buildRows({ resolvedAfter: startOfWeek() });
+    // "This week" scoped to the viewer's local week, not the server's UTC week
+    rows = await buildRows({ resolvedAfter: startOfWeek(timeZone) });
   } else if (tab === "all") {
     rows = await buildRows({});
   } else {

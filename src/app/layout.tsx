@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
+import { TimezoneSync } from "@/components/TimezoneSync";
 import { getCurrentUser, isAdmin } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -27,6 +28,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* flex-1 lets short pages push the footer to the viewport bottom */}
         <main className="flex-1 pb-12 pt-4">{children}</main>
         <Footer />
+        {/* Keeps the user's stored IANA timezone in sync with their browser.
+            Renders nothing — pure side-effect. */}
+        {user && <TimezoneSync storedTimezone={user.timezone ?? null} />}
       </body>
     </html>
   );

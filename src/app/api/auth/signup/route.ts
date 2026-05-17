@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, isValidEmail } from "@/lib/auth";
 import { createSession } from "@/lib/session";
+import { isValidTimezone } from "@/lib/timezone";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -10,6 +11,8 @@ export async function POST(req: Request) {
   const name = String(body.name ?? "").trim();
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
+  const rawTimezone = typeof body.timezone === "string" ? body.timezone.trim() : "";
+  const timezone = isValidTimezone(rawTimezone) ? rawTimezone : null;
 
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   if (!isValidEmail(email)) return NextResponse.json({ error: "Invalid email" }, { status: 400 });
@@ -20,7 +23,7 @@ export async function POST(req: Request) {
 
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { name, email, passwordHash },
+    data: { name, email, passwordHash, timezone },
     select: { id: true, name: true, email: true },
   });
 

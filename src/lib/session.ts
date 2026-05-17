@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "./prisma";
+import { DEFAULT_TIMEZONE, resolveTimezone } from "./timezone";
 
 const COOKIE_NAME = "wrong_session";
 const ALG = "HS256";
@@ -66,8 +67,25 @@ export async function getCurrentUser() {
   if (!id) return null;
   return prisma.user.findUnique({
     where: { id },
-    select: { id: true, name: true, email: true, createdAt: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      createdAt: true,
+      timezone: true,
+    },
   });
+}
+
+/**
+ * Resolves the user's IANA timezone, falling back to DEFAULT_TIMEZONE
+ * (America/New_York) when the stored value is missing or invalid.
+ */
+export function getUserTimezone(
+  user: { timezone?: string | null } | null | undefined,
+): string {
+  if (!user) return DEFAULT_TIMEZONE;
+  return resolveTimezone(user.timezone);
 }
 
 // Returns the user id only if the user exists in the database. Otherwise null.

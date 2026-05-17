@@ -37,10 +37,20 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
     setLoading(true);
     try {
+      // Capture the browser's IANA timezone so the user's daily reset /
+      // streak math lines up with their actual local day.
+      let timezone: string | undefined;
+      try {
+        const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (detected) timezone = detected;
+      } catch {
+        // older browsers may throw — ignore, server will default
+      }
+
       const res = await fetch(isSignup ? "/api/auth/signup" : "/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, timezone }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
