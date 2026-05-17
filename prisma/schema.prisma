@@ -31,6 +31,13 @@ model Question {
   // YES | NO | null
   correctAnswer      String?
   publishDate        DateTime
+  // When users can no longer answer this question. Nullable so legacy rows
+  // remain valid without backfill — read paths fall back to resolutionDate
+  // when this is null.
+  closesToPredictionsAt DateTime?
+  // When the admin should resolve the question with YES/NO. Drives the
+  // "Needs Resolved Today" admin queue. Distinct from closesToPredictionsAt
+  // so a question can have a short answer window but a long resolution window.
   resolutionDate     DateTime
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt

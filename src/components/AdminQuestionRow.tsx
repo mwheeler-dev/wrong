@@ -11,6 +11,7 @@ type Question = {
   correctAnswer: string | null;
   publishDate: string;
   resolutionDate: string;
+  closesToPredictionsAt: string | null;
   predictionsCount: number;
 };
 
@@ -94,9 +95,18 @@ export function AdminQuestionRow({ q }: { q: Question }) {
         </span>
       </div>
       <p className="mt-2 font-semibold">{q.text}</p>
-      <p className="mt-1 text-xs text-muted">
-        Pub {new Date(q.publishDate).toLocaleString()} · Resolve {new Date(q.resolutionDate).toLocaleString()}
-      </p>
+      <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs text-muted sm:grid-cols-[auto_1fr]">
+        <dt className="font-semibold uppercase tracking-wider">Publish</dt>
+        <dd>{new Date(q.publishDate).toLocaleString()}</dd>
+        <dt className="font-semibold uppercase tracking-wider">Closes to predictions</dt>
+        <dd>
+          {q.closesToPredictionsAt
+            ? new Date(q.closesToPredictionsAt).toLocaleString()
+            : `(falls back to resolve date)`}
+        </dd>
+        <dt className="font-semibold uppercase tracking-wider">Needs resolved</dt>
+        <dd>{new Date(q.resolutionDate).toLocaleString()}</dd>
+      </dl>
 
       {error && <p className="mt-2 text-sm text-bad">{error}</p>}
 

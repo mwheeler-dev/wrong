@@ -135,8 +135,15 @@ const questions = [
 ];
 
 async function main() {
-  // For demo purposes: publish today, resolve in 3 days
-  const publishDate = daysFromNow(0);
+  // Demo defaults:
+  //   publish              → now
+  //   closes to predictions → 24 hours from now (short answer window)
+  //   needs resolved        → 3 days from now (longer resolution window)
+  // This intentionally exercises the new lifecycle: users can only answer
+  // for a day, but the admin doesn't need to resolve until day 3.
+  const now = new Date();
+  const publishDate = now;
+  const closesToPredictionsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const resolutionDate = daysFromNow(3);
 
   for (const q of questions) {
@@ -149,6 +156,7 @@ async function main() {
         status: "PENDING",
         correctAnswer: null,
         publishDate,
+        closesToPredictionsAt,
         resolutionDate,
       },
     });

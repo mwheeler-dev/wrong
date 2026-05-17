@@ -16,6 +16,10 @@ export async function POST(req: Request) {
   const sourceUrl = body.sourceUrl ? String(body.sourceUrl).trim() : null;
   const publishDate = body.publishDate ? new Date(body.publishDate) : null;
   const resolutionDate = body.resolutionDate ? new Date(body.resolutionDate) : null;
+  // Nullable — if omitted the read paths fall back to resolutionDate.
+  const closesToPredictionsAt = body.closesToPredictionsAt
+    ? new Date(body.closesToPredictionsAt)
+    : null;
 
   if (!text) return NextResponse.json({ error: "Question text is required" }, { status: 400 });
   if (!CATEGORIES.includes(category as (typeof CATEGORIES)[number])) {
@@ -33,6 +37,26 @@ export async function POST(req: Request) {
   if (resolutionDate <= publishDate) {
     return NextResponse.json({ error: "resolutionDate must be after publishDate" }, { status: 400 });
   }
+  if (closesToPredictionsAt) {
+    if (isNaN(closesToPredictionsAt.getTime())) {
+      return NextResponse.json(
+        { error: "Invalid closesToPredictionsAt" },
+        { status: 400 },
+      );
+    }
+    if (closesToPredictionsAt <= publishDate) {
+      return NextResponse.json(
+        { error: "closesToPredictionsAt must be after publishDate" },
+        { status: 400 },
+      );
+    }
+    if (closesToPredictionsAt > resolutionDate) {
+      return NextResponse.json(
+        { error: "closesToPredictionsAt cannot be after resolutionDate" },
+        { status: 400 },
+      );
+    }
+  }
 
   const question = await prisma.question.create({
     data: {
@@ -42,6 +66,7 @@ export async function POST(req: Request) {
       sourceUrl,
       publishDate,
       resolutionDate,
+      closesToPredictionsAt,
       status: "PENDING",
     },
   });

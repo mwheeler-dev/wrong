@@ -9,6 +9,11 @@ import {
   nextMidnight,
 } from "@/lib/daily";
 import { computeStreak } from "@/lib/streaks";
+import {
+  closesLabel,
+  effectiveClosesAt,
+  outcomeLabel,
+} from "@/lib/timing";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +27,6 @@ export default async function PlayPage() {
   const now = new Date();
   const tomorrowMidnight = nextMidnight(timeZone, now);
 
-  // Count today's predictions through the SAME helper the predict route uses,
-  // so /play, the predict-response, and /dashboard can never disagree.
-  // Streak input is the full createdAt history, grouped per-user-local-day
-  // by computeStreak.
   const [todayCount, predictionCreatedAts] = await Promise.all([
     countTodaysPredictions(userId, timeZone, now),
     prisma.prediction.findMany({
@@ -43,7 +44,6 @@ export default async function PlayPage() {
 
   const remainingToday = Math.max(0, DAILY_CAP - todayCount);
 
-  // CASE 1 — daily cap reached in this user's local day.
   if (remainingToday === 0) {
     return (
       <PlayEmptyState
@@ -55,14 +55,21 @@ export default async function PlayPage() {
     );
   }
 
-  // CASE 2 — fetch up to `remainingToday` unanswered PENDING questions.
-  // NOTE: no `resolutionDate > now` filter. PENDING is the source of truth
-  // for "still answerable"; resolutionDate is a target, not a strict cutoff.
+  // Visibility cutoff is `closesToPredictionsAt`, NOT resolutionDate.
+  // Legacy rows where closesToPredictionsAt is null fall back to
+  // resolutionDate so existing live questions keep working without backfill.
   const batch = await prisma.question.findMany({
     where: {
       publishDate: { lte: now },
       status: "PENDING",
       predictions: { none: { userId } },
+      OR: [
+        { closesToPredictionsAt: { gt: now } },
+        {
+          closesToPredictionsAt: null,
+          resolutionDate: { gt: now },
+        },
+      ],
     },
     orderBy: [{ publishDate: "desc" }, { createdAt: "desc" }],
     take: remainingToday,
@@ -71,11 +78,11 @@ export default async function PlayPage() {
       text: true,
       category: true,
       resolutionDate: true,
+      closesToPredictionsAt: true,
       sourceUrl: true,
     },
   });
 
-  // CASE 3 — under the cap but pool is dry for this user.
   if (batch.length === 0) {
     return (
       <PlayEmptyState
@@ -87,15 +94,30 @@ export default async function PlayPage() {
     );
   }
 
-  const questions = batch.map((q) => ({
-    id: q.id,
-    text: q.text,
-    category: q.category,
-    resolutionDate: q.resolutionDate.toISOString(),
-    sourceUrl: q.sourceUrl,
-  }));
+  // Server-render the timing strings using the user's timezone — server is
+  // authoritative for "tonight" vs "tomorrow", so labels stay consistent for
+  // anyone in the same zone. Slight drift while the page is open (e.g., "in
+  // 6 hours" → "in 5 hours") is acceptable; navigating refreshes.
+  const questions = batch.map((q) => {
+    const closesAt = effectiveClosesAt(q);
+    const closesEqualsResolves =
+      q.closesToPredictionsAt == null ||
+      closesAt.getTime() === q.resolutionDate.getTime();
+    return {
+      id: q.id,
+      text: q.text,
+      category: q.category,
+      sourceUrl: q.sourceUrl,
+      closesLabel: closesLabel(closesAt, timeZone, now),
+      // Only surface the secondary outcome line when the resolve window is
+      // meaningfully later than the answer window. Otherwise we'd just be
+      // saying the same date twice.
+      outcomeLabel: closesEqualsResolves
+        ? null
+        : outcomeLabel(q.resolutionDate, timeZone),
+    };
+  });
 
-  // CASE 4 — normal round.
   return (
     <PlayClient
       questions={questions}
