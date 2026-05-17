@@ -2,26 +2,33 @@
 
 import { useEffect, useRef, useState } from "react";
 
+/**
+ * Where the tooltip's body anchors relative to the trigger.
+ *   - "center" (default): tooltip centered under the icon.
+ *   - "left":   tooltip's left edge aligns with trigger's left edge —
+ *               opens inward when the trigger sits near the left of a card.
+ *   - "right":  mirror of "left", for triggers near a right edge.
+ */
+export type TooltipPlacement = "left" | "center" | "right";
+
 type Props = {
-  /** Accessible label, e.g. "What is Edge?". Read by screen readers. */
   label: string;
-  /** Tooltip body. Plain text or small inline element. */
   children: React.ReactNode;
   className?: string;
+  placement?: TooltipPlacement;
 };
 
 /**
  * Minimal, on-brand info tooltip. A small "i" disc that pops a dark popover
- * with explanatory copy. Works on hover, focus, and tap (mobile).
- *
- * Design constraints:
- *   - Same palette as the rest of the app (ink/paper/lime).
- *   - No external positioning library — fixed mt-2, max-w 80vw, centered.
- *   - Keyboard accessible: focus opens, blur/Esc closes.
- *   - aria-hidden flips with state so screen readers don't surface the
- *     tooltip body unless it's open.
+ * with explanatory copy. Hover, focus, tap all open; Esc / outside-click
+ * close. Width clamps to viewport on narrow screens so it never overflows.
  */
-export function InfoTooltip({ label, children, className = "" }: Props) {
+export function InfoTooltip({
+  label,
+  children,
+  className = "",
+  placement = "center",
+}: Props) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLSpanElement>(null);
 
@@ -45,6 +52,15 @@ export function InfoTooltip({ label, children, className = "" }: Props) {
     };
   }, [open]);
 
+  // Position anchor classes. Each variant pins one edge so a tooltip near
+  // the left side of a card opens inward to the right, etc.
+  const positionClass =
+    placement === "left"
+      ? "left-0"
+      : placement === "right"
+        ? "right-0"
+        : "left-1/2 -translate-x-1/2";
+
   return (
     <span
       ref={wrapRef}
@@ -66,7 +82,7 @@ export function InfoTooltip({ label, children, className = "" }: Props) {
       <span
         role="tooltip"
         aria-hidden={!open}
-        className={`absolute left-1/2 top-full z-30 mt-2 w-64 max-w-[80vw] -translate-x-1/2 rounded-2xl border border-paper/15 bg-ink p-3 text-xs leading-snug text-paper shadow-[0_8px_40px_rgba(0,0,0,0.25)] transition-opacity duration-150 ${
+        className={`absolute top-full z-30 mt-2 w-64 max-w-[min(16rem,calc(100vw-2rem))] rounded-2xl border border-paper/15 bg-ink p-3 text-xs leading-snug text-paper shadow-[0_8px_40px_rgba(0,0,0,0.25)] transition-opacity duration-150 ${positionClass} ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       >

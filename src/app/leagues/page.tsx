@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/session";
 import { CategoryStats, type CategoryStat } from "@/components/CategoryStats";
+import { TrophyIcon } from "@/components/icons/TrophyIcon";
 import { CATEGORIES } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -10,21 +11,39 @@ export const dynamic = "force-dynamic";
  * Reusable "Forecasting tournaments coming soon" banner.
  * Black breathing card — same prestige treatment as the dashboard streak
  * card and the /boards hero, so the three pages feel like one product.
+ * Trophy floats top-right with a soft glow to signal competition.
  */
 function TournamentsBanner() {
   return (
     <div className="streak-card border border-paper/10">
       <div className="relative p-6 sm:p-8">
-        <p className="label text-accent">Coming soon</p>
-        <h2 className="display mt-2 text-3xl sm:text-4xl">
-          Forecasting tournaments are coming.
-        </h2>
-        <p className="mt-3 max-w-md text-sm text-paper/75">
-          Soon, leagues won’t just track your category performance. They’ll
-          host seasonal competitions, head-to-head matchups, and prediction
-          tournaments. Rankings are only the beginning.
-        </p>
+        <TrophyIcon
+          aria-hidden
+          className="streak-trophy pointer-events-none absolute right-6 top-6 h-14 w-14 text-accent/80 sm:right-8 sm:top-8 sm:h-20 sm:w-20"
+        />
+        <div className="relative max-w-md pr-16 sm:pr-24">
+          <p className="label text-accent">Coming soon</p>
+          <h2 className="display mt-2 text-3xl sm:text-4xl">
+            Forecasting tournaments are coming.
+          </h2>
+          <p className="mt-3 text-sm text-paper/75">
+            Soon, leagues won’t just track your category performance. They’ll
+            host seasonal competitions, head-to-head matchups, and prediction
+            tournaments. Rankings are only the beginning.
+          </p>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function LeaguesTitle() {
+  return (
+    <div className="flex items-baseline gap-3">
+      <TrophyIcon className="streak-trophy h-8 w-8 shrink-0 self-center text-accent sm:h-10 sm:w-10" />
+      <h1 className="display text-4xl sm:text-5xl">
+        Leagues<span className="text-accent">.</span>
+      </h1>
     </div>
   );
 }
@@ -42,7 +61,7 @@ export default async function LeaguesPage() {
     }));
     return (
       <div className="wrap-wide pt-6 pb-16">
-        <h1 className="display text-4xl sm:text-5xl">Leagues.</h1>
+        <LeaguesTitle />
         <p className="mt-1 text-muted">
           Where you’re sharp. Where you’re wrong.
         </p>
@@ -98,7 +117,7 @@ export default async function LeaguesPage() {
 
   return (
     <div className="wrap-wide pt-6 pb-16">
-      <h1 className="display text-4xl sm:text-5xl">Leagues.</h1>
+      <LeaguesTitle />
       <p className="mt-1 text-muted">
         Where you’re sharp. Where you’re wrong.
       </p>

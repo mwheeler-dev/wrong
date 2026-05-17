@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getUserTimezone } from "@/lib/session";
 import { LeaderboardTable, type LeaderboardRow } from "@/components/LeaderboardTable";
 import { InfoTooltip } from "@/components/InfoTooltip";
+import { TrophyIcon } from "@/components/icons/TrophyIcon";
+import { CategoryIcon } from "@/components/icons/CategoryIcon";
 import { startOfWeek } from "@/lib/dates";
 import { CATEGORIES } from "@/lib/scoring";
 
@@ -94,32 +96,47 @@ export default async function LeaderboardsPage({
 
   return (
     <div className="wrap-wide pt-6 pb-16">
-      <h1 className="display text-4xl sm:text-5xl">Boards.</h1>
+      {/* Title — lime period mirrors the "Wrong." brand mark; trophy glyph
+          to its left signals competition without going gamer. */}
+      <div className="flex items-baseline gap-3">
+        <TrophyIcon className="streak-trophy h-8 w-8 shrink-0 self-center text-accent sm:h-10 sm:w-10" />
+        <h1 className="display text-4xl sm:text-5xl">
+          Boards<span className="text-accent">.</span>
+        </h1>
+      </div>
 
       {/* Prestige hero — black breathing card carrying the Edge definition.
-          Same visual language as the dashboard streak card. */}
+          Same visual language as the dashboard streak card. Tooltip opens
+          inward (placement="left") because the trigger sits near the card's
+          left edge — center placement was clipping off-screen on narrow widths. */}
       <div className="streak-card mt-4 border border-paper/10">
         <div className="relative p-6 sm:p-8">
-          <div className="flex items-center gap-2">
-            <p className="label text-accent">Edge</p>
-            <InfoTooltip label="What is Edge?">
-              Edge increases when your predictions are correct relative to your
-              confidence.
-            </InfoTooltip>
+          <TrophyIcon
+            aria-hidden
+            className="streak-trophy pointer-events-none absolute right-6 top-6 hidden h-14 w-14 text-accent/70 sm:right-8 sm:top-8 sm:block sm:h-20 sm:w-20"
+          />
+          <div className="relative max-w-md pr-0 sm:pr-24">
+            <div className="flex items-center gap-2">
+              <p className="label text-accent">Edge</p>
+              <InfoTooltip label="What is Edge?" placement="left">
+                Edge increases when your predictions are correct relative to
+                your confidence.
+              </InfoTooltip>
+            </div>
+            <h2 className="display mt-2 text-3xl sm:text-4xl">
+              Reality keeps score.<br />
+              Edge is the difference.
+            </h2>
+            <p className="mt-3 text-sm text-paper/70">
+              Earned when your confidence meets reality. The board ranks the
+              sharpest.
+            </p>
+            {!userId && (
+              <Link href="/signup" className="btn-accent mt-5 inline-flex">
+                Sign up
+              </Link>
+            )}
           </div>
-          <h2 className="display mt-2 text-3xl sm:text-4xl">
-            Reality keeps score.<br />
-            Edge is the difference.
-          </h2>
-          <p className="mt-3 max-w-md text-sm text-paper/70">
-            Earned when your confidence meets reality. The board ranks the
-            sharpest.
-          </p>
-          {!userId && (
-            <Link href="/signup" className="btn-accent mt-5 inline-flex">
-              Sign up
-            </Link>
-          )}
         </div>
       </div>
 
@@ -139,8 +156,13 @@ export default async function LeaderboardsPage({
             <a
               key={c}
               href={`/leaderboards?tab=category&category=${encodeURIComponent(c)}`}
-              className={`pill ${c === category ? "bg-ink text-paper border-ink" : ""}`}
+              className={`pill inline-flex items-center gap-1.5 transition ${
+                c === category
+                  ? "border-ink bg-ink text-paper shadow-[0_0_18px_rgba(217,255,0,0.18)]"
+                  : "hover:border-ink"
+              }`}
             >
+              <CategoryIcon category={c} className="h-3.5 w-3.5" />
               {c}
             </a>
           ))}
