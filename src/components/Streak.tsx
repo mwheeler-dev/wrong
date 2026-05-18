@@ -1,4 +1,4 @@
-import type { StreakStats } from "@/lib/streaks";
+import type { StreakStats, StreakState } from "@/lib/streaks";
 import { FlameIcon } from "./icons/FlameIcon";
 import { TrophyIcon } from "./icons/TrophyIcon";
 import { CheckCircleIcon } from "./icons/CheckCircleIcon";
@@ -13,33 +13,34 @@ type Props = {
 };
 
 /**
- * The premium streak card.
+ * The premium streak card. Renders three distinct states via copy and tone:
  *
- * Visual language:
- *   - Black card on white page = highest contrast on the dashboard
- *   - Lime breathing halo (streak-breath) — subtle, 6s cycle
- *   - Flame icon pulses (streak-flame) — left anchor
- *   - Trophy icon appears + pulses (streak-trophy) on day-complete days
- *   - Streak number gets a soft lime text-shadow
- *   - Single-row footer with one tasteful sparkle glyph
+ *   active   "Streak alive."     — today's cap is hit
+ *   at-risk  "Streak at risk."   — yesterday completed, today not yet
+ *   broken   "Streak idle."      — no recent completed day to protect
  *
- * Layout: stacked on mobile, two columns on sm+, divider between them.
+ * Visual hierarchy is identical across states; only words change. Eligibility
+ * to play is decided by todayCount vs DAILY_CAP on the server — never by
+ * streak state.
  */
 export function Streak({ stats, footer }: Props) {
   const pct = Math.min(100, (stats.todayCount / stats.todayTarget) * 100);
   const remaining = Math.max(0, stats.todayTarget - stats.todayCount);
-  const streakAlive = stats.streak > 0;
   const footerLine = footer ?? defaultFooter(stats);
+
+  // Flame is lit whenever there's a streak to protect (active OR at-risk).
+  // Broken state dims it. We don't use a separate "warning" color for
+  // at-risk — the copy carries the urgency, not the palette.
+  const flameLit = stats.state === "active" || stats.state === "at-risk";
 
   return (
     <div className="streak-card border border-paper/10">
-      {/* Top: streak block | divider | today block */}
       <div className="relative flex flex-col gap-6 p-6 sm:flex-row sm:items-stretch sm:gap-0 sm:p-8">
         {/* ── Streak side ─────────────────────────────────────── */}
         <div className="flex items-center gap-4 sm:flex-1">
           <FlameIcon
             className={`streak-flame h-12 w-12 shrink-0 sm:h-16 sm:w-16 ${
-              streakAlive ? "text-accent" : "text-paper/30"
+              flameLit ? "text-accent" : "text-paper/30"
             }`}
           />
           <div className="min-w-0 flex-1">
@@ -52,10 +53,10 @@ export function Streak({ stats, footer }: Props) {
             </p>
             <p
               className={`mt-1 text-sm font-bold ${
-                streakAlive ? "text-accent" : "text-paper/60"
+                flameLit ? "text-accent" : "text-paper/60"
               }`}
             >
-              {streakAlive ? "Streak alive." : "Streak idle."}
+              {statusLine(stats.state)}
             </p>
             <p className="mt-0.5 text-xs text-paper/60">
               Reality remembers consistency.
@@ -63,7 +64,7 @@ export function Streak({ stats, footer }: Props) {
           </div>
         </div>
 
-        {/* Divider — horizontal on mobile, vertical on sm+ */}
+        {/* Divider */}
         <div className="h-px w-full bg-paper/12 sm:mx-8 sm:h-auto sm:w-px" />
 
         {/* ── Today side ──────────────────────────────────────── */}
@@ -92,9 +93,7 @@ export function Streak({ stats, footer }: Props) {
                   <span className="text-accent">Day complete.</span>
                 </>
               ) : (
-                <span className="text-paper/70">
-                  {remaining} to go.
-                </span>
+                <span className="text-paper/70">{remaining} to go.</span>
               )}
             </p>
           </div>
@@ -105,7 +104,6 @@ export function Streak({ stats, footer }: Props) {
         </div>
       </div>
 
-      {/* Footer band */}
       <div className="relative border-t border-paper/10 px-6 py-3 text-center sm:px-8">
         <p className="text-xs text-paper/70">
           <span className="mr-1 text-accent" aria-hidden>
@@ -118,16 +116,29 @@ export function Streak({ stats, footer }: Props) {
   );
 }
 
-function defaultFooter(stats: StreakStats): string {
-  if (stats.todayComplete) {
-    return stats.streak >= 2
-      ? "You’re building momentum. Come back tomorrow to keep the streak alive."
-      : stats.streak === 1
-        ? "Day one in the books. Make it two tomorrow."
-        : "Day locked in. Reality will respond.";
+function statusLine(state: StreakState): string {
+  switch (state) {
+    case "active":
+      return "Streak alive.";
+    case "at-risk":
+      return "Streak at risk.";
+    case "broken":
+      return "Streak idle.";
   }
-  if (stats.streak > 0) {
-    return "Your streak is on the clock today.";
+}
+
+function defaultFooter(stats: StreakStats): string {
+  if (stats.state === "active") {
+    if (stats.streak >= 2) {
+      return "You’re building momentum. Come back tomorrow to keep the streak alive.";
+    }
+    if (stats.streak === 1) {
+      return "Day one in the books. Make it two tomorrow.";
+    }
+    return "Day locked in. Reality will respond.";
+  }
+  if (stats.state === "at-risk") {
+    return `Complete today’s 10 predictions to keep your ${stats.streak}-day streak alive.`;
   }
   if (stats.todayCount > 0) {
     return "Finish today to start your streak.";

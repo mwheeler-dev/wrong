@@ -4,6 +4,7 @@ import { DAILY_CAP } from "@/lib/daily";
 import { FlameIcon } from "./icons/FlameIcon";
 import { CheckCircleIcon } from "./icons/CheckCircleIcon";
 import { TrophyIcon } from "./icons/TrophyIcon";
+import type { StreakState } from "@/lib/streaks";
 
 type Variant = "cap-reached" | "pool-empty";
 
@@ -11,6 +12,12 @@ type Props = {
   variant: Variant;
   todayCount: number;
   streak: number;
+  /**
+   * Streak state for COPY ONLY. The variant above is the source of truth for
+   * whether the user can play. Streak state never gates eligibility — it only
+   * tunes the words on the empty screen.
+   */
+  streakState: StreakState;
   nextMidnightIso: string;
 };
 
@@ -18,6 +25,7 @@ export function PlayEmptyState({
   variant,
   todayCount,
   streak,
+  streakState,
   nextMidnightIso,
 }: Props) {
   const isCap = variant === "cap-reached";
@@ -28,7 +36,8 @@ export function PlayEmptyState({
     : "You’ve cleared the board. New predictions arrive daily.";
 
   const progressPct = Math.min(100, Math.round((todayCount / DAILY_CAP) * 100));
-  const streakAlive = streak > 0;
+  // Flame is lit whenever there's a streak to protect — including at-risk.
+  const flameLit = streakState === "active" || streakState === "at-risk";
 
   return (
     <div className="wrap pb-16 pt-10 sm:pt-14">
@@ -36,12 +45,12 @@ export function PlayEmptyState({
       <h1 className="display mt-3 text-5xl sm:text-6xl">{headline}</h1>
       <p className="mt-4 max-w-md text-base text-muted sm:text-lg">{sub}</p>
 
-      {/* Streak prestige card — same visual language as the dashboard streak */}
+      {/* Streak prestige strip */}
       <div className="streak-card mt-8 border border-paper/10">
         <div className="relative flex items-center gap-4 p-5 sm:p-6">
           <FlameIcon
             className={`streak-flame h-12 w-12 shrink-0 sm:h-14 sm:w-14 ${
-              streakAlive ? "text-accent" : "text-paper/30"
+              flameLit ? "text-accent" : "text-paper/30"
             }`}
           />
           <div className="min-w-0 flex-1">
@@ -54,10 +63,10 @@ export function PlayEmptyState({
             </p>
             <p
               className={`mt-1 text-xs font-bold ${
-                streakAlive ? "text-accent" : "text-paper/60"
+                flameLit ? "text-accent" : "text-paper/60"
               }`}
             >
-              {streakAlive ? "Streak alive." : "Streak idle."}
+              {streakStatusLine(streakState)}
             </p>
           </div>
           {isCap && (
@@ -102,9 +111,7 @@ export function PlayEmptyState({
             </>
           ) : (
             <span className="text-muted">
-              {streakAlive
-                ? `${streak}-day streak. Come back tomorrow.`
-                : "Predict 10 in a day to start a streak."}
+              {bottomLine(streakState, streak)}
             </span>
           )}
         </p>
@@ -120,4 +127,37 @@ export function PlayEmptyState({
       </div>
     </div>
   );
+}
+
+function streakStatusLine(state: StreakState): string {
+  switch (state) {
+    case "active":
+      return "Streak alive.";
+    case "at-risk":
+      return "Streak at risk.";
+    case "broken":
+      return "Streak idle.";
+  }
+}
+
+/**
+ * Bottom-line copy under the today's-predictions card. Used only in the
+ * pool-empty variant — cap-reached shows "Day complete." instead.
+ *
+ * Honest about what the user is looking at: their streak is at-risk because
+ * today isn't done, but the reason there's nothing to play is that reality
+ * (the admin pipeline) hasn't published new predictions. We don't say "come
+ * back tomorrow" — the user IS on the new day already.
+ */
+function bottomLine(state: StreakState, streak: number): string {
+  switch (state) {
+    case "active":
+      // Theoretically unreachable in pool-empty (active requires today >=
+      // DAILY_CAP, which is the cap-reached branch), but keep the fallback.
+      return `${streak}-day streak. Streak alive.`;
+    case "at-risk":
+      return `${streak}-day streak — at risk. Reality publishes new predictions daily.`;
+    case "broken":
+      return "Predict 10 in a day to start a streak.";
+  }
 }

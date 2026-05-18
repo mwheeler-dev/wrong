@@ -5,13 +5,34 @@ import { dayKeyInTz, dayKeyOffsetInTz } from "./timezone";
 
 export const DAILY_TARGET = DAILY_CAP;
 
+/**
+ * The streak's relationship to TODAY.
+ *
+ *   "active"  — user completed today's daily cap (todayComplete === true).
+ *   "at-risk" — user completed at least yesterday (streak > 0) but has not
+ *               yet completed today.
+ *   "broken"  — user hasn't completed yesterday or earlier. May or may not
+ *               have predictions on today; either way, no streak to protect.
+ *
+ * Used to drive copy + visual state. NEVER used to gate play eligibility —
+ * cap-reached is decided solely by `todayCount >= DAILY_CAP`.
+ */
+export type StreakState = "active" | "at-risk" | "broken";
+
 export type StreakStats = {
   streak: number;
   todayCount: number;
   todayTarget: number;
   todayComplete: boolean;
   totalCompleteDays: number;
+  state: StreakState;
 };
+
+function streakStateFor(todayComplete: boolean, streak: number): StreakState {
+  if (todayComplete) return "active";
+  if (streak > 0) return "at-risk";
+  return "broken";
+}
 
 /**
  * Computes streak / today stats given:
@@ -57,5 +78,6 @@ export function computeStreak(
     todayTarget: DAILY_TARGET,
     todayComplete,
     totalCompleteDays: completeDays.size,
+    state: streakStateFor(todayComplete, streak),
   };
 }
