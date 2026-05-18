@@ -22,6 +22,15 @@ export async function POST(req: Request) {
   const answer = String(body.answer ?? "") as Answer;
   const confidence = Number(body.confidence) as Confidence;
   const roundToken = typeof body.roundToken === "string" ? body.roundToken : "";
+  // Client-reported "when this question's 30s timer started". Used for the
+  // per-question deadline check below; absent on legacy clients (the
+  // round-token cumulative deadline is still in force as a backstop).
+  const questionStartedAt =
+    typeof body.questionStartedAt === "number" &&
+    Number.isFinite(body.questionStartedAt) &&
+    body.questionStartedAt > 0
+      ? body.questionStartedAt
+      : null;
 
   if (!questionId) return NextResponse.json({ error: "Missing questionId" }, { status: 400 });
   if (answer !== "YES" && answer !== "NO") {
@@ -53,6 +62,20 @@ export async function POST(req: Request) {
       { error: "Already answered", todayCount, dailyCap: DAILY_CAP },
       { status: 409 },
     );
+  }
+
+  // Per-question 30s + grace check. Trust the client-reported start time
+  // ONLY as an upper bound — a malicious client can always send a fresh
+  // timestamp, but the round-token cumulative check below caps total time
+  // since round mint regardless of what the client claims here.
+  if (questionStartedAt != null) {
+    const PER_QUESTION_BUDGET_MS = 30_000 + 5_000;
+    if (Date.now() - questionStartedAt > PER_QUESTION_BUDGET_MS) {
+      return NextResponse.json(
+        { error: "Question timer expired" },
+        { status: 408 },
+      );
+    }
   }
 
   const deadlineCheck = checkRoundDeadline({

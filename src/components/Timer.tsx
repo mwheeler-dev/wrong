@@ -1,35 +1,86 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ensureQuestionTimer } from "@/lib/questionTimer";
 
 type Props = {
+  /** How long the question is live, in seconds. (30 in production.) */
   seconds: number;
+  /**
+   * The active question's id. Used as the sessionStorage key for the
+   * persisted deadline — switching to a different question creates a
+   * separate timer; returning to the same question continues the old one.
+   */
+  questionId: string;
   onExpire?: () => void;
-  // changing this key resets the timer
-  resetKey: string | number;
 };
 
-export function Timer({ seconds, onExpire, resetKey }: Props) {
+/**
+ * Per-question countdown bound to an ABSOLUTE deadline stored in
+ * sessionStorage, not to the component's mount time.
+ *
+ * Properties:
+ *   - First mount for a question → creates `deadline = now + seconds*1000`,
+ *     persists it, displays remaining.
+ *   - Remount for the same question (refresh, navigation, hydration) →
+ *     reads the existing deadline, continues from real elapsed time. If
+ *     the deadline has already passed, onExpire fires immediately.
+ *   - Tab returns from background → setInterval may have been throttled,
+ *     so a visibilitychange listener forces an immediate recomputation
+ *     from `deadline - Date.now()`.
+ *   - Different question (id changes) → effect re-runs with a fresh
+ *     storage key, which gets its own deadline.
+ *
+ * Lifecycle of the storage key is owned by PlayClient (clears on success /
+ * 409 / bring-back; preserves on expiry so refresh can't reset it).
+ */
+export function Timer({ seconds, questionId, onExpire }: Props) {
   const [remaining, setRemaining] = useState(seconds);
   const expiredRef = useRef(false);
+  const onExpireRef = useRef(onExpire);
+
+  // Keep the latest onExpire reachable inside the interval without
+  // re-running the effect on every render.
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  }, [onExpire]);
 
   useEffect(() => {
-    setRemaining(seconds);
     expiredRef.current = false;
-    const start = Date.now();
-    const interval = setInterval(() => {
-      const elapsed = (Date.now() - start) / 1000;
-      const next = Math.max(0, seconds - elapsed);
-      setRemaining(next);
-      if (next <= 0 && !expiredRef.current) {
+    const durationMs = seconds * 1000;
+    const { deadline } = ensureQuestionTimer(questionId, durationMs);
+
+    const tick = () => {
+      const ms = deadline - Date.now();
+      const sec = Math.max(0, ms / 1000);
+      setRemaining(sec);
+      if (sec <= 0 && !expiredRef.current) {
         expiredRef.current = true;
         clearInterval(interval);
-        onExpire?.();
+        onExpireRef.current?.();
       }
-    }, 100);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey, seconds]);
+    };
+
+    // Synchronous first reading — if the persisted deadline is already in
+    // the past (refresh after expiry), this fires onExpire immediately
+    // instead of leaving the user staring at a stale "30s".
+    tick();
+    const interval = setInterval(tick, 100);
+
+    // Browsers throttle setInterval aggressively in background tabs (often
+    // to once per second or less), so the displayed countdown can be stale
+    // when the user returns. Recompute from the absolute deadline on
+    // every visibility regain — never reset, only recompute.
+    function onVisibility() {
+      if (!document.hidden) tick();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [questionId, seconds]);
 
   const pct = Math.max(0, Math.min(1, remaining / seconds));
   const isLow = remaining <= 5;

@@ -12,7 +12,15 @@ import { Countdown } from "./Countdown";
 import { FlameIcon } from "./icons/FlameIcon";
 import { TrophyIcon } from "./icons/TrophyIcon";
 import { CheckCircleIcon } from "./icons/CheckCircleIcon";
+import {
+  clearStoredDeadline,
+  getStoredDeadline,
+} from "@/lib/questionTimer";
 import type { Answer, Confidence } from "@/lib/scoring";
+
+// Must match the `seconds` prop passed to <Timer> below — the deadline
+// derivation reads (deadline - QUESTION_DURATION_MS) to recover startedAt.
+const QUESTION_DURATION_MS = 30_000;
 
 type Props = {
   questions: QuestionForPlay[];
@@ -172,6 +180,14 @@ export function PlayClient({
             setSkippedIds(new Set());
             const fresh = questions.filter((q) => !answeredIds.has(q.id));
             if (fresh.length === 0) return;
+            // "Bring them back" is the explicit user-driven retry — clear
+            // each question's stored deadline so the Timer creates a fresh
+            // 30s window on the next mount. Without this, the previously
+            // expired deadlines would re-fire onExpire immediately and we'd
+            // skip everything again.
+            for (const q of fresh) {
+              clearStoredDeadline(q.id);
+            }
             setRoundToken(null);
             void (async () => {
               try {
@@ -208,6 +224,14 @@ export function PlayClient({
     setSubmitting(true);
     setError(null);
     try {
+      // Recover the question's start time from the stored deadline so the
+      // server can enforce a per-question 30s budget. Fall back to "now" if
+      // storage is unavailable — the server-side round-token cumulative
+      // check is still in force as a backstop.
+      const storedDeadline = getStoredDeadline(current.id);
+      const questionStartedAt =
+        storedDeadline != null ? storedDeadline - QUESTION_DURATION_MS : Date.now();
+
       const res = await fetch("/api/play/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -216,6 +240,7 @@ export function PlayClient({
           answer,
           confidence,
           roundToken,
+          questionStartedAt,
         }),
       });
       const data = await res.json();
@@ -225,6 +250,9 @@ export function PlayClient({
           // the current authoritative count so we sync without an extra
           // round trip. recordAnswered is a no-op for IDs already in the set.
           recordAnswered(current.id);
+          // The question is resolved server-side — drop the timer key so we
+          // don't leak entries in sessionStorage.
+          clearStoredDeadline(current.id);
           if (typeof data.todayCount === "number") {
             setTodayCount(data.todayCount);
           }
@@ -233,16 +261,35 @@ export function PlayClient({
           goNext();
           return;
         }
-        // Any non-2xx, non-409 response means the prediction did NOT save.
-        // Do NOT touch answeredIds or todayCount — local progress must
-        // never count an attempt that failed on the server.
+        if (res.status === 408) {
+          // Server says the timer is up (per-question OR cumulative). Treat
+          // exactly like a client-side timer expiry: skip the question and
+          // move on, and DELIBERATELY DO NOT clear the stored deadline.
+          // Keeping the expired deadline in sessionStorage means a refresh
+          // re-fires onExpire immediately — the user can't get another 30s
+          // by reloading the page.
+          setSkippedIds((prev) => {
+            if (prev.has(current.id)) return prev;
+            const next = new Set(prev);
+            next.add(current.id);
+            return next;
+          });
+          setSubmitting(false);
+          goNext();
+          return;
+        }
+        // Any other non-2xx response means the prediction did NOT save.
+        // Do NOT touch answeredIds, todayCount, or the timer — the user
+        // may retry within whatever remains of their 30s.
         setError(data.error || "Could not save your prediction.");
         setSubmitting(false);
         return;
       }
-      // 2xx success. The server already counted the new prediction; trust
-      // its `todayCount` rather than incrementing locally.
+      // 2xx success. Trust the server's authoritative todayCount, mark
+      // locally, and clear the per-question timer key — the question is
+      // done.
       recordAnswered(current.id);
+      clearStoredDeadline(current.id);
       if (typeof data.todayCount === "number") {
         setTodayCount(data.todayCount);
       }
@@ -257,6 +304,10 @@ export function PlayClient({
 
   function handleTimerExpire() {
     if (!current || result) return;
+    // Note: we DO NOT clear the stored deadline here. The whole point of
+    // the persisted timer is that a refresh after expiry shouldn't grant
+    // another 30 seconds — the past deadline immediately re-fires onExpire
+    // on the next mount, which calls this same handler.
     setSkippedIds((prev) => {
       if (prev.has(current.id)) return prev;
       const next = new Set(prev);
@@ -286,7 +337,7 @@ export function PlayClient({
         <div className="mt-3 sm:mt-4">
           <Timer
             seconds={30}
-            resetKey={current.id}
+            questionId={current.id}
             onExpire={handleTimerExpire}
           />
         </div>
