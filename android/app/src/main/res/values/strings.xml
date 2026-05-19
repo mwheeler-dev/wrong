@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Wrong.</string>
+    <string name="title_activity_main">Wrong.</string>
+    <string name="package_name">com.wrongapp.mobile</string>
+    <string name="custom_url_scheme">com.wrongapp.mobile</string>
+</resources>

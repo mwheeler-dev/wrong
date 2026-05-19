@@ -2,6 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ensureQuestionTimer } from "@/lib/questionTimer";
+import { hapticLight, hapticMedium } from "@/lib/native";
+
+// Timer warning pulses (single-fire per question). Lower numbers fire when
+// the countdown CROSSES them moving downward; we never re-fire after a tab
+// switch/recompute. The order { sec, kind } is descending so the gate
+// (alreadyFired) closes them off as we pass through.
+const WARNING_THRESHOLDS: { sec: number; kind: "light" | "medium" }[] = [
+  { sec: 10, kind: "light" },
+  { sec: 5, kind: "light" },
+  { sec: 3, kind: "medium" },
+];
 
 type Props = {
   /** How long the question is live, in seconds. (30 in production.) */
@@ -45,8 +56,22 @@ export function Timer({ seconds, questionId, onExpire }: Props) {
     onExpireRef.current = onExpire;
   }, [onExpire]);
 
+  // Threshold buzzes already played (or deliberately skipped) for THIS
+  // question. Reset only when the questionId changes — visibility-regain
+  // recomputes remaining time but never re-fires a threshold, and never
+  // back-fires thresholds we crossed while the tab was backgrounded
+  // (those are marked "skipped" silently).
+  const firedThresholdsRef = useRef<Set<number>>(new Set());
+  // Per-threshold flag: did we previously observe `sec` strictly ABOVE this
+  // threshold? Only then is a downward crossing a real "warning event".
+  // First mount with `sec` already <= threshold = backgrounded across it
+  // = silent skip.
+  const observedAboveRef = useRef<Set<number>>(new Set());
+
   useEffect(() => {
     expiredRef.current = false;
+    firedThresholdsRef.current = new Set();
+    observedAboveRef.current = new Set();
     const durationMs = seconds * 1000;
     const { deadline } = ensureQuestionTimer(questionId, durationMs);
 
@@ -63,6 +88,29 @@ export function Timer({ seconds, questionId, onExpire }: Props) {
       const ms = deadline - Date.now();
       const sec = Math.max(0, ms / 1000);
       setRemaining(sec);
+
+      // Single-fire warning pulses. Strategy:
+      //   * If we've seen `sec` ABOVE this threshold in a previous tick,
+      //     a downward crossing is a real event → fire once, mark fired.
+      //   * If our very first observation is already at/below the
+      //     threshold (e.g. user returned from background well after
+      //     the threshold passed), mark fired WITHOUT firing — better
+      //     to skip a missed warning than to spam a backlog of buzzes.
+      const ceiled = Math.ceil(sec);
+      for (const { sec: thresholdSec, kind } of WARNING_THRESHOLDS) {
+        if (firedThresholdsRef.current.has(thresholdSec)) continue;
+        if (ceiled > thresholdSec) {
+          observedAboveRef.current.add(thresholdSec);
+          continue;
+        }
+        // ceiled <= thresholdSec — crossing or already past.
+        if (sec > 0 && observedAboveRef.current.has(thresholdSec)) {
+          if (kind === "light") hapticLight();
+          else hapticMedium();
+        }
+        firedThresholdsRef.current.add(thresholdSec);
+      }
+
       if (sec <= 0 && !expiredRef.current) {
         expiredRef.current = true;
         if (intervalId != null) {

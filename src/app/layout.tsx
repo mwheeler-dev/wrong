@@ -3,6 +3,8 @@ import "./globals.css";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { TimezoneSync } from "@/components/TimezoneSync";
+import { NativeBootstrap } from "@/components/NativeBootstrap";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { getCurrentUser, isAdmin } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -24,6 +26,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body className="flex min-h-dvh flex-col">
+        {/* Native-only side effects: status bar, splash dismiss, push,
+            app lifecycle. No-ops in the browser — see src/lib/native.ts. */}
+        <NativeBootstrap />
+        {/* Touch-only pull-to-refresh. Auto-disabled on /play to protect
+            active-question state — see PullToRefresh.tsx. */}
+        <PullToRefresh />
         <Nav user={user} isAdmin={admin} />
         {/* flex-1 lets short pages push the footer to the viewport bottom */}
         <main className="flex-1 pb-12 pt-4">{children}</main>

@@ -16,6 +16,13 @@ import {
   clearStoredDeadline,
   getStoredDeadline,
 } from "@/lib/questionTimer";
+import {
+  hapticError,
+  hapticLight,
+  hapticMedium,
+  hapticSuccess,
+  hapticWarning,
+} from "@/lib/native";
 import type { Answer, Confidence } from "@/lib/scoring";
 
 // Must match the `seconds` prop passed to <Timer> below — the deadline
@@ -212,6 +219,8 @@ export function PlayClient({
 
   async function lockIn() {
     if (!current || !answer || !confidence) return;
+    // Medium impact on commit — distinct, satisfying, but not jarring.
+    hapticMedium();
     setSubmitting(true);
     setError(null);
     try {
@@ -284,6 +293,18 @@ export function PlayClient({
       if (typeof data.todayCount === "number") {
         setTodayCount(data.todayCount);
       }
+      // Outcome-based haptic. If the question is already resolved server-side,
+      // the response includes the correct answer + score — match the haptic
+      // to whether the user was on the right side of reality. Pending
+      // questions return correctAnswer: null and we stay silent.
+      const resolvedAnswer = data.question?.correctAnswer ?? null;
+      if (resolvedAnswer != null) {
+        if (resolvedAnswer === answer) {
+          hapticSuccess();
+        } else {
+          hapticError();
+        }
+      }
       setResult(data);
       router.refresh();
     } catch {
@@ -295,6 +316,11 @@ export function PlayClient({
 
   function handleTimerExpire() {
     if (!current || result) return;
+    // Warning haptic on timer-out — a single rebuke distinct from the
+    // medium "commit" buzz and the success/error result buzz. We do this
+    // here (not inside <Timer>) so it fires exactly once per question
+    // expiry, not on every visibility-regain recomputation.
+    hapticWarning();
     // Note: we DO NOT clear the stored deadline here. The whole point of
     // the persisted timer is that a refresh after expiry shouldn't grant
     // another 30 seconds — the past deadline immediately re-fires onExpire
@@ -357,7 +383,13 @@ export function PlayClient({
             <QuestionCard
               question={current}
               answer={answer}
-              onSelectAnswer={setAnswer}
+              onSelectAnswer={(a) => {
+                // Light tap on answer pick. Fires even when the user
+                // toggles between YES/NO; that's intentional — every
+                // touch should feel responsive.
+                hapticLight();
+                setAnswer(a);
+              }}
               disabled={submitting}
             />
             <div className="card mt-3 sm:mt-4">
