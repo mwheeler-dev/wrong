@@ -164,50 +164,41 @@ export function PlayClient({
     );
   }
 
-  // Session-only edge: every remaining question was skipped (timer expired).
-  // Offer to bring them back rather than leaving the user stuck.
+  // No current question and no pending result. Either every eligible
+  // question in this session was skipped/expired, or the round emptied
+  // out for some other reason. We render the same pool-empty state the
+  // server would render — no retry path, no special "A few left" copy.
+  // Expired questions are permanent for this batch by design; the user
+  // returns when reality (or the admin) publishes more.
   if (!current && !result) {
     return (
-      <div className="wrap pt-12">
-        <h1 className="display text-4xl">A few left.</h1>
-        <p className="mt-3 text-muted">
-          {totalToday} of {dailyCap} answered today. The rest of this batch was
-          skipped — bring them back to try again.
+      <div className="wrap pb-16 pt-10 sm:pt-14">
+        <p className="label">Today</p>
+        <h1 className="display mt-3 text-5xl sm:text-6xl">
+          You’re ahead of reality.
+        </h1>
+        <p className="mt-4 max-w-md text-base text-muted sm:text-lg">
+          You’ve cleared the board. New predictions arrive daily.
         </p>
-        <button
-          className="btn-accent mt-6"
-          onClick={() => {
-            setSkippedIds(new Set());
-            const fresh = questions.filter((q) => !answeredIds.has(q.id));
-            if (fresh.length === 0) return;
-            // "Bring them back" is the explicit user-driven retry — clear
-            // each question's stored deadline so the Timer creates a fresh
-            // 30s window on the next mount. Without this, the previously
-            // expired deadlines would re-fire onExpire immediately and we'd
-            // skip everything again.
-            for (const q of fresh) {
-              clearStoredDeadline(q.id);
-            }
-            setRoundToken(null);
-            void (async () => {
-              try {
-                const res = await fetch("/api/play/round", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    questionIds: fresh.map((q) => q.id),
-                  }),
-                });
-                const data = await res.json();
-                if (res.ok && data.roundToken) {
-                  setRoundToken(data.roundToken);
-                }
-              } catch {}
-            })();
-          }}
-        >
-          Bring them back
-        </button>
+
+        <div className="card mt-8 bg-ink text-paper">
+          <p className="label text-paper/60">Reality resets in</p>
+          <div className="display mt-2 text-5xl sm:text-6xl">
+            <Countdown targetIso={nextMidnightIso} />
+          </div>
+          <p className="mt-3 text-sm text-paper/70">
+            New predictions every midnight, your time.
+          </p>
+        </div>
+
+        <div className="mt-8 flex flex-col gap-2 sm:flex-row">
+          <Link href="/dashboard" className="btn-accent">
+            See your dashboard
+          </Link>
+          <Link href="/leaderboards" className="btn-ghost">
+            Boards
+          </Link>
+        </div>
       </div>
     );
   }

@@ -50,34 +50,50 @@ export function Timer({ seconds, questionId, onExpire }: Props) {
     const durationMs = seconds * 1000;
     const { deadline } = ensureQuestionTimer(questionId, durationMs);
 
+    // CRITICAL: declared as `let` and initialized to undefined so the
+    // closure has a valid binding from the moment `tick` is defined. The
+    // previous version used `const interval = setInterval(...)` AFTER the
+    // synchronous tick() call below — when the persisted deadline was
+    // already in the past, that initial tick reached `clearInterval(interval)`
+    // before `interval` was initialized, throwing a TDZ ReferenceError and
+    // crashing /play on every refresh once any deadline had elapsed.
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+
     const tick = () => {
       const ms = deadline - Date.now();
       const sec = Math.max(0, ms / 1000);
       setRemaining(sec);
       if (sec <= 0 && !expiredRef.current) {
         expiredRef.current = true;
-        clearInterval(interval);
+        if (intervalId != null) {
+          clearInterval(intervalId);
+          intervalId = undefined;
+        }
         onExpireRef.current?.();
       }
     };
 
-    // Synchronous first reading — if the persisted deadline is already in
-    // the past (refresh after expiry), this fires onExpire immediately
-    // instead of leaving the user staring at a stale "30s".
+    // Synchronous first reading. If the persisted deadline is already past
+    // (refresh after expiry), this fires onExpire immediately — and that's
+    // now safe because `intervalId` is `undefined` (not in TDZ), so the
+    // conditional clearInterval is a no-op.
     tick();
-    const interval = setInterval(tick, 100);
+    // Don't schedule a ticker we already expired against. Saves a
+    // 100ms-cycle of pointless setState noise during cascade.
+    if (!expiredRef.current) {
+      intervalId = setInterval(tick, 100);
+    }
 
-    // Browsers throttle setInterval aggressively in background tabs (often
-    // to once per second or less), so the displayed countdown can be stale
-    // when the user returns. Recompute from the absolute deadline on
-    // every visibility regain — never reset, only recompute.
+    // Browsers throttle setInterval aggressively in background tabs, so the
+    // displayed countdown can be stale when the user returns. Recompute
+    // from the absolute deadline on every visibility regain — never reset.
     function onVisibility() {
       if (!document.hidden) tick();
     }
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      clearInterval(interval);
+      if (intervalId != null) clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [questionId, seconds]);
