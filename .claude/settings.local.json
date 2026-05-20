@@ -4,7 +4,11 @@
       "Bash(npx capacitor-assets *)",
       "Bash(npm install *)",
       "Bash(npm run *)",
-      "Bash(npx cap *)"
+      "Bash(npx cap *)",
+      "PowerShell(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\marqu\\\\wrong\\\\prisma\\\\migrations\\\\20260520000000_add_prediction_reflection\" -Force)",
+      "PowerShell(\"ok\")",
+      "Bash(npx prisma *)",
+      "Bash(git add *)"
     ]
   }
 }

@@ -7,6 +7,7 @@ import { QuestionCard, type QuestionForPlay } from "./QuestionCard";
 import { ConfidenceSelector } from "./ConfidenceSelector";
 import { Timer } from "./Timer";
 import { ResultCard, type CrowdStats } from "./ResultCard";
+import { ReasoningInput } from "./ReasoningInput";
 import { Disclaimer } from "./Disclaimer";
 import { Countdown } from "./Countdown";
 import { FlameIcon } from "./icons/FlameIcon";
@@ -42,7 +43,7 @@ type Props = {
 };
 
 type SubmitResponse = {
-  prediction: { answer: Answer; confidence: number; score: number | null };
+  prediction: { id: string; answer: Answer; confidence: number; score: number | null };
   question: { correctAnswer: Answer | null };
   crowd: CrowdStats;
   feedback: string;
@@ -181,11 +182,11 @@ export function PlayClient({
     return (
       <div className="wrap pb-16 pt-10 sm:pt-14">
         <p className="label">Today</p>
-        <h1 className="display mt-3 text-5xl sm:text-6xl">
-          You’re ahead of reality.
+        <h1 className="display mt-3 text-[44px] leading-[0.95] sm:text-6xl">
+          You&rsquo;re ahead of reality.
         </h1>
         <p className="mt-4 max-w-md text-base text-muted sm:text-lg">
-          You’ve cleared the board. New predictions arrive daily.
+          You&rsquo;ve cleared the board. New predictions arrive daily.
         </p>
 
         <div className="card mt-8 bg-ink text-paper">
@@ -371,6 +372,14 @@ export function PlayClient({
               crowd={result.crowd}
               feedback={result.feedback}
             />
+            {/* Optional per-prediction reasoning capture. Submitting is
+                gated on at least one chip; the user can also skip by
+                hitting Next question. Keyed on prediction.id so each
+                question gets a fresh panel. */}
+            <ReasoningInput
+              key={result.prediction.id}
+              predictionId={result.prediction.id}
+            />
             <button
               onClick={goNext}
               className="btn-primary mt-3 w-full text-base sm:mt-4"
@@ -453,8 +462,8 @@ function DoneScreen({
   return (
     <div className="wrap pt-8 sm:pt-10">
       <p className="label">Today</p>
-      <h1 className="display mt-3 text-4xl sm:text-5xl">
-        You’ve made your calls.
+      <h1 className="display mt-3 text-[40px] leading-[0.95] sm:text-5xl">
+        You&rsquo;ve made your calls.
       </h1>
       <p className="mt-3 text-muted">
         Now reality decides. Tomorrow brings new predictions.

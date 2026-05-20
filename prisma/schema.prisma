@@ -59,12 +59,34 @@ model Prediction {
   createdAt  DateTime  @default(now())
   resolvedAt DateTime?
 
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question   Question                @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reflection PredictionReflection?
 
   @@unique([userId, questionId])
   @@index([userId])
   @@index([questionId])
+}
+
+// Structured per-prediction reasoning + optional reflection text. Captured
+// right after the user locks in a prediction. The `reasoning` array stores
+// the canonical lowercase tokens "research", "experience", "intuition"
+// (declared in src/lib/reasoning.ts) so we can filter/search later by
+// reasoning style without coupling to UI copy. `text` is optional — chips
+// alone are a valid reflection. One reflection per prediction (unique fk).
+model PredictionReflection {
+  id           String     @id @default(cuid())
+  predictionId String     @unique
+  // JSONB array of reasoning tokens. Stored as Json instead of a join table
+  // because the set is small + fixed and we never need to query the chips
+  // independently of a prediction.
+  reasoning    Json
+  // Optional free-text reflection. Empty/null when the user submitted
+  // chips-only.
+  text         String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  prediction   Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
 }
 
 model DailyReflection {

@@ -12,12 +12,12 @@ export default async function LandingPage() {
       <section className="wrap pt-10 sm:pt-16">
         <div className="fade-in">
           <div className="flex items-baseline">
-            <h1 className="display text-[68px] leading-[0.85] sm:text-[120px]">
+            <h1 className="display text-[88px] leading-[0.85] sm:text-[140px]">
               Wrong<span className="text-accent pulse-dot">.</span>
             </h1>
           </div>
-          <p className="display mt-4 text-3xl sm:mt-6 sm:text-5xl">
-            How wrong are you<br className="sm:hidden" /> today?
+          <p className="display mt-3 text-[40px] leading-[0.95] sm:mt-6 sm:text-6xl">
+            How wrong are you today?
           </p>
           <p className="mt-4 max-w-md text-base text-muted sm:text-lg">
             Ten questions. Yes or no. Pick your confidence. Reality keeps score.

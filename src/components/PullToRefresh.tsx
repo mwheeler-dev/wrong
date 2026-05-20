@@ -16,6 +16,19 @@ type Props = {
 const TRIGGER_PX = 70;
 const MAX_PX = 110;
 
+// iOS Safari is inconsistent about which element actually carries the
+// scroll: sometimes documentElement, sometimes body, sometimes the visual
+// viewport. window.scrollY can read 0 while body.scrollTop is positive,
+// and vice-versa. The page is at the top only when ALL three are <= 2,
+// which gives us a tiny tolerance for momentum-overshoot pixels.
+function isAtPageTop(): boolean {
+  if (typeof window === "undefined") return false;
+  const winY = window.scrollY || 0;
+  const docY = document.documentElement?.scrollTop || 0;
+  const bodyY = document.body?.scrollTop || 0;
+  return winY <= 2 && docY <= 2 && bodyY <= 2;
+}
+
 /**
  * Native-feeling pull-to-refresh for mobile/touch only.
  *
@@ -58,7 +71,17 @@ export function PullToRefresh({ enabled }: Props) {
 
     function onTouchStart(e: TouchEvent) {
       if (refreshing) return;
-      if (window.scrollY > 0) return;
+      // iOS Safari quirk: see isAtPageTop() — check window scrollY,
+      // documentElement.scrollTop, AND body.scrollTop in case any one of
+      // them disagrees.
+      if (!isAtPageTop()) return;
+      // Don't claim the gesture if the touch started on an interactive
+      // element. This protects buttons, inputs, sliders, and form controls
+      // from being eaten by the refresh.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("button, a, input, textarea, select, [role='button']")) {
+        return;
+      }
       const t = e.touches[0];
       if (!t) return;
       startYRef.current = t.clientY;

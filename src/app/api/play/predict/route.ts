@@ -165,6 +165,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     prediction: {
+      id: prediction.id,
       answer: prediction.answer as Answer,
       confidence: prediction.confidence,
       score: prediction.score,

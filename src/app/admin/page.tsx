@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getUserTimezone, isAdmin } from "@/lib/session";
 import { AdminQuestionForm } from "@/components/AdminQuestionForm";
-import { AdminQuestionRow } from "@/components/AdminQuestionRow";
+import { AdminQuestionList } from "@/components/AdminQuestionList";
 import { PublishBatchButton } from "@/components/PublishBatchButton";
+import { BackfillScoresButton } from "@/components/BackfillScoresButton";
 import { nextMidnight, startOfToday } from "@/lib/daily";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,6 @@ export default async function AdminPage() {
 
   const adminTz = getUserTimezone(user);
   const now = new Date();
-  // "Today" in the admin's local timezone — drives the Needs Resolved Today queue.
   const todayStart = startOfToday(adminTz, now);
   const tomorrowMidnight = nextMidnight(adminTz, now);
 
@@ -65,25 +65,24 @@ export default async function AdminPage() {
   const pending = questions.filter((q) => q.status === "PENDING");
   const resolved = questions.filter((q) => q.status === "RESOLVED");
 
-  const scheduled = pending.filter((q) => q.publishDate > now);
-
-  // Effective close time = closesToPredictionsAt with legacy fallback to
-  // resolutionDate. Used to decide if a question is still answerable.
   function effectiveClosesAt(q: typeof pending[number]): Date {
     return q.closesToPredictionsAt ?? q.resolutionDate;
   }
 
-  // Live = published AND not yet past the answer-window cutoff. The
-  // "Needs Resolved Today" queue is a SEPARATE concept — it groups by
-  // resolutionDate, not by visibility.
+  const scheduled = pending.filter((q) => q.publishDate > now);
+
   const live = pending.filter(
     (q) => q.publishDate <= now && effectiveClosesAt(q) > now,
   );
 
-  // Needs Resolved Today = PENDING questions whose resolutionDate falls
-  // inside the admin's local day. Past-due questions and future-day
-  // questions are intentionally excluded so this queue means exactly
-  // "scheduled to be resolved today".
+  // OVERDUE: PENDING questions whose resolutionDate is in the past
+  // (strictly before todayStart in the admin's local timezone). These used
+  // to disappear from every section — that's the bug that left their
+  // predictions stuck on "Pending" forever. Showing them here is the fix.
+  const overdue = pending
+    .filter((q) => q.resolutionDate < todayStart)
+    .sort((a, b) => a.resolutionDate.getTime() - b.resolutionDate.getTime());
+
   const needsResolvedToday = pending.filter(
     (q) =>
       q.resolutionDate >= todayStart && q.resolutionDate < tomorrowMidnight,
@@ -114,6 +113,10 @@ export default async function AdminPage() {
         </a>
       </section>
 
+      <section className="mt-6">
+        <BackfillScoresButton />
+      </section>
+
       <section className="mt-8">
         <h2 className="display text-xl sm:text-2xl">New question</h2>
         <div className="mt-3">
@@ -128,70 +131,41 @@ export default async function AdminPage() {
         </div>
       </section>
 
-      <Section
-        title={`Scheduled (${scheduled.length})`}
-        subtitle="Publish later. Or promote with the daily batch button."
-      >
-        {scheduled.length === 0 ? (
-          <p className="card text-sm text-muted">Nothing scheduled.</p>
-        ) : (
-          scheduled.map((q) => (
-            <AdminQuestionRow key={q.id} q={toRowProps(q)} />
-          ))
-        )}
-      </Section>
+      <AdminQuestionList
+        title={`Overdue (${overdue.length})`}
+        subtitle="Past resolution date and still PENDING. Resolve these first — every day they sit here, users see their predictions stuck on Pending."
+        emphasize={overdue.length > 0}
+        emptyText="Nothing overdue. Reality is on time."
+        rows={overdue.map(toRowProps)}
+      />
 
-      <Section
+      <AdminQuestionList
         title={`Needs Resolved Today (${needsResolvedToday.length})`}
-        subtitle="Scheduled to be resolved today, in your local timezone. Resolving here scores all related predictions."
-      >
-        {needsResolvedToday.length === 0 ? (
-          <p className="card text-sm text-muted">
-            Nothing scheduled to resolve today.
-          </p>
-        ) : (
-          needsResolvedToday.map((q) => (
-            <AdminQuestionRow key={q.id} q={toRowProps(q)} />
-          ))
-        )}
-      </Section>
+        subtitle="Scheduled to be resolved today, in your local timezone."
+        emptyText="Nothing scheduled to resolve today."
+        rows={needsResolvedToday.map(toRowProps)}
+      />
 
-      <Section
+      <AdminQuestionList
         title={`Live (${live.length})`}
         subtitle="Currently answerable on /play. Resolve early from here if needed."
-      >
-        {live.length === 0 ? (
-          <p className="card text-sm text-muted">Nothing live.</p>
-        ) : (
-          live.map((q) => <AdminQuestionRow key={q.id} q={toRowProps(q)} />)
-        )}
-      </Section>
+        emptyText="Nothing live."
+        rows={live.map(toRowProps)}
+      />
 
-      <Section title={`Resolved (${resolved.length})`} subtitle="Scored and locked.">
-        {resolved.length === 0 ? (
-          <p className="card text-sm text-muted">Nothing resolved yet.</p>
-        ) : (
-          resolved.map((q) => <AdminQuestionRow key={q.id} q={toRowProps(q)} />)
-        )}
-      </Section>
+      <AdminQuestionList
+        title={`Scheduled (${scheduled.length})`}
+        subtitle="Publish later. Or promote with the daily batch button."
+        emptyText="Nothing scheduled."
+        rows={scheduled.map(toRowProps)}
+      />
+
+      <AdminQuestionList
+        title={`Resolved (${resolved.length})`}
+        subtitle="Scored and locked."
+        emptyText="Nothing resolved yet."
+        rows={resolved.map(toRowProps)}
+      />
     </div>
-  );
-}
-
-function Section({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mt-10">
-      <h2 className="display text-xl sm:text-2xl">{title}</h2>
-      {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
-      <div className="mt-3 space-y-2">{children}</div>
-    </section>
   );
 }

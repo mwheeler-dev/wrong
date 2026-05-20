@@ -105,6 +105,30 @@ The push pipeline is groundwork only. Before sending real notifications:
    calls the FCM HTTP v1 API.
 5. Decide on UX for foreground notifications — currently we log only.
 
+## Production database migration
+
+This branch introduces a new Prisma model — `PredictionReflection` (per-prediction
+reasoning chips + optional text). Migration file:
+`prisma/migrations/20260520000000_add_prediction_reflection/migration.sql`.
+
+**Before deploying to Railway**, run the migration against production:
+
+```bash
+DATABASE_URL=<railway-prod-url> npx prisma migrate deploy
+```
+
+This is purely additive (a new table with a foreign key to `Prediction`) —
+existing reads and writes are unaffected. But the new code paths (
+`/api/play/predict/[id]/reflection`, the dashboard's `prediction.reflection`
+include, `/dashboard/reflections`) will throw at runtime if the table
+doesn't yet exist in the live DB.
+
+If the user reports "predictions stuck on Pending" after this deploy, an
+admin can repair with a single click via the new "Run backfill" button on
+`/admin`, which calls `POST /api/admin/backfill-scores`. The endpoint is
+idempotent — it only touches predictions with `score IS NULL` belonging to
+`RESOLVED` questions.
+
 ## What is intentionally NOT done
 
 - No Play Store signing / release configuration.

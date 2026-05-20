@@ -1,9 +1,25 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
-import { CONFIDENCE_LEVELS, type Answer } from "@/lib/scoring";
+import { type Answer } from "@/lib/scoring";
 
-// Mark a question as RESOLVED and score all predictions in a bounded number of queries.
+// Mark a question as RESOLVED and score every existing prediction on it.
+//
+// Implementation note (the historical bug): we used to fan out a
+// per-confidence-level updateMany pair, which silently SKIPS any prediction
+// whose confidence value isn't in the canonical [60,70,80,90] set. Two
+// failure modes that produced "stuck on Pending":
+//   * legacy/seed rows with off-canonical confidence values
+//   * partial backfills on retries
+//
+// We now use raw SQL with `score = confidence` (or `-confidence`), which
+// pulls each row's actual confidence value and works regardless of the set
+// it came from. The IS NULL guard makes the operation idempotent: rerunning
+// resolve never double-counts an already-scored prediction. Wrapping
+// transaction keeps Question.status and Prediction.score consistent on
+// failure.
 export async function POST(req: Request, ctx: { params: { id: string } }) {
   const { response } = await requireAdmin();
   if (response) return response;
@@ -19,25 +35,30 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
   if (!question) return NextResponse.json({ error: "Question not found" }, { status: 404 });
 
   const wrongAnswer: Answer = correctAnswer === "YES" ? "NO" : "YES";
-  const now = new Date();
 
-  // Batch the score updates: at most 2 × 4 = 8 queries regardless of how many predictions exist.
   await prisma.$transaction([
     prisma.question.update({
       where: { id },
       data: { status: "RESOLVED", correctAnswer },
     }),
-    ...CONFIDENCE_LEVELS.flatMap((conf) => [
-      prisma.prediction.updateMany({
-        where: { questionId: id, answer: correctAnswer, confidence: conf },
-        data: { score: conf, resolvedAt: now },
-      }),
-      prisma.prediction.updateMany({
-        where: { questionId: id, answer: wrongAnswer, confidence: conf },
-        data: { score: -conf, resolvedAt: now },
-      }),
-    ]),
+    // Correct predictions: +confidence. IS NULL gate = idempotent retry.
+    prisma.$executeRaw(
+      Prisma.sql`UPDATE "Prediction" SET "score" = "confidence", "resolvedAt" = NOW() WHERE "questionId" = ${id} AND "answer" = ${correctAnswer} AND "score" IS NULL`,
+    ),
+    // Wrong predictions: -confidence.
+    prisma.$executeRaw(
+      Prisma.sql`UPDATE "Prediction" SET "score" = -"confidence", "resolvedAt" = NOW() WHERE "questionId" = ${id} AND "answer" = ${wrongAnswer} AND "score" IS NULL`,
+    ),
   ]);
+
+  // Invalidate the pages that read prediction state so the user sees the
+  // newly-scored row without a manual reload. Previously this was missing
+  // and contributed to the "stuck Pending" appearance even after the
+  // resolve transaction succeeded.
+  revalidatePath("/dashboard");
+  revalidatePath("/admin");
+  revalidatePath("/play");
+  revalidatePath("/dashboard/resolved");
 
   return NextResponse.json({ ok: true });
 }
@@ -59,6 +80,11 @@ export async function DELETE(_req: Request, ctx: { params: { id: string } }) {
       data: { score: null, resolvedAt: null },
     }),
   ]);
+
+  revalidatePath("/dashboard");
+  revalidatePath("/admin");
+  revalidatePath("/play");
+  revalidatePath("/dashboard/resolved");
 
   return NextResponse.json({ ok: true });
 }

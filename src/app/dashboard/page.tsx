@@ -5,22 +5,29 @@ import { getCurrentUser, getUserTimezone } from "@/lib/session";
 import { ScoreCard } from "@/components/ScoreCard";
 import { Streak } from "@/components/Streak";
 import { Calibration } from "@/components/Calibration";
+import { ThinkingProfile } from "@/components/ThinkingProfile";
 import { Journal } from "@/components/Journal";
 import { InfoTooltip } from "@/components/InfoTooltip";
+import { PendingCarousel, type PendingItem } from "@/components/PendingCarousel";
 import { startOfToday, endOfToday, startOfWeek, formatShortDate } from "@/lib/dates";
 import { dangerousConfidenceLine } from "@/lib/feedback";
 import { computeStreak } from "@/lib/streaks";
 import { calibrationVerdict, computeCalibration } from "@/lib/calibration";
 import { buildJournal } from "@/lib/journal";
+import { computeThinkingProfile } from "@/lib/thinkingProfile";
+import { readReasoning } from "@/lib/reasoning";
 
 export const dynamic = "force-dynamic";
+
+const DASHBOARD_RESOLVED_PREVIEW = 5;
+const DASHBOARD_JOURNAL_DAYS = 3;
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const timeZone = getUserTimezone(user);
 
-  const [predictions, reflections] = await Promise.all([
+  const [predictions, dailyReflections] = await Promise.all([
     prisma.prediction.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -34,6 +41,11 @@ export default async function DashboardPage() {
             correctAnswer: true,
             resolutionDate: true,
           },
+        },
+        // Per-prediction reflection (chips + optional text). Null until
+        // the user submits via the ReasoningInput component on /play.
+        reflection: {
+          select: { reasoning: true, text: true },
         },
       },
     }),
@@ -49,6 +61,7 @@ export default async function DashboardPage() {
   const todayStart = startOfToday(timeZone);
   const todayEnd = endOfToday(timeZone);
   const weekStart = startOfWeek(timeZone);
+  const now = new Date();
 
   const todayScore = resolved
     .filter((p) => p.resolvedAt && p.resolvedAt >= todayStart && p.resolvedAt <= todayEnd)
@@ -61,19 +74,27 @@ export default async function DashboardPage() {
   const allTimeScore = resolved.reduce((s, p) => s + (p.score ?? 0), 0);
 
   const correctCount = resolved.filter((p) => (p.score ?? 0) > 0).length;
-  const accuracy = resolved.length === 0
-    ? null
-    : Math.round((correctCount / resolved.length) * 100);
+  const accuracy =
+    resolved.length === 0
+      ? null
+      : Math.round((correctCount / resolved.length) * 100);
 
-  const avgConfidence = predictions.length === 0
-    ? null
-    : Math.round(predictions.reduce((s, p) => s + p.confidence, 0) / predictions.length);
+  const avgConfidence =
+    predictions.length === 0
+      ? null
+      : Math.round(
+          predictions.reduce((s, p) => s + p.confidence, 0) /
+            predictions.length,
+        );
 
   // Most dangerous confidence (most-negative net resolved score at a level)
   const lossByLevel = new Map<number, number>();
   for (const p of resolved) {
     if ((p.score ?? 0) < 0) {
-      lossByLevel.set(p.confidence, (lossByLevel.get(p.confidence) ?? 0) + (p.score ?? 0));
+      lossByLevel.set(
+        p.confidence,
+        (lossByLevel.get(p.confidence) ?? 0) + (p.score ?? 0),
+      );
     }
   }
   let dangerousLevel: number | null = null;
@@ -85,19 +106,29 @@ export default async function DashboardPage() {
     }
   }
 
-  // Streak
   const streakStats = computeStreak(
     predictions.map((p) => p.createdAt),
     timeZone,
   );
 
-  // Calibration
   const calibrationRows = computeCalibration(
     resolved.map((p) => ({ confidence: p.confidence, score: p.score })),
   );
   const verdict = calibrationVerdict(calibrationRows);
 
-  // Journal (predictions + reflections, last 14 days)
+  // Thinking profile: per-style usage + accuracy, computed from the
+  // already-fetched predictions. No extra DB hit. Sample-size guards live
+  // inside computeThinkingProfile so the renderer can stay dumb.
+  const thinkingProfile = computeThinkingProfile(
+    predictions.map((p) => ({
+      score: p.score,
+      category: p.question.category,
+      reasoning: readReasoning(p.reflection?.reasoning),
+    })),
+  );
+
+  // Journal: only days with actual written reflections. Pass per-prediction
+  // reflection records through; buildJournal filters out unreflected rows.
   const journalDays = buildJournal(
     predictions.map((p) => ({
       id: p.id,
@@ -110,26 +141,56 @@ export default async function DashboardPage() {
         category: p.question.category,
         correctAnswer: p.question.correctAnswer,
       },
+      reflection: p.reflection
+        ? { reasoning: p.reflection.reasoning, text: p.reflection.text }
+        : null,
     })),
-    reflections.map((r) => ({ date: r.date, text: r.text })),
-    { limitDays: 14, timeZone },
+    dailyReflections.map((r) => ({ date: r.date, text: r.text })),
+    { limitDays: DASHBOARD_JOURNAL_DAYS, timeZone },
   );
+
+  // Pending → carousel items. Overdue = the question's resolution date is
+  // already in the past. That's the user-visible signal of the bug Part 1
+  // fixed; once an admin resolves, the carousel item moves to Resolved.
+  const pendingItems: PendingItem[] = pending.map((p) => ({
+    id: p.id,
+    category: p.question.category,
+    questionText: p.question.text,
+    answer: p.answer,
+    confidence: p.confidence,
+    resolvesLabel: `resolves ${formatShortDate(p.question.resolutionDate, timeZone)}`,
+    overdue: p.question.resolutionDate < now,
+  }));
+
+  const resolvedPreview = resolved.slice(0, DASHBOARD_RESOLVED_PREVIEW);
 
   return (
     <div className="wrap-wide pt-6 pb-12">
       <header className="flex items-end justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="label">Hello, {user.name}</p>
-          <h1 className="display mt-1 text-4xl sm:text-5xl">How wrong are you today?</h1>
+          <h1 className="display mt-1 text-[40px] leading-[0.95] sm:text-5xl">
+            How wrong are you today?
+          </h1>
         </div>
-        <Link href="/play" className="btn-accent hidden shrink-0 sm:inline-flex">Play today</Link>
+        <Link
+          href="/play"
+          className="btn-accent hidden shrink-0 sm:inline-flex"
+        >
+          Play today
+        </Link>
       </header>
 
       <div className="mt-6">
         <Streak stats={streakStats} />
       </div>
 
-      <Link href="/play" className="btn-accent mt-4 inline-flex w-full sm:hidden">Play today</Link>
+      <Link
+        href="/play"
+        className="btn-accent mt-4 inline-flex w-full sm:hidden"
+      >
+        Play today
+      </Link>
 
       <div className="mt-10 flex items-center gap-2">
         <p className="label">Edge</p>
@@ -174,54 +235,67 @@ export default async function DashboardPage() {
 
       <section className="mt-10">
         <Calibration rows={calibrationRows} verdict={verdict} />
+        <ThinkingProfile profile={thinkingProfile} />
       </section>
 
       <section className="mt-10">
-        <h2 className="display text-2xl sm:text-3xl">Pending</h2>
-        <p className="text-sm text-muted">Predictions waiting on reality.</p>
-        <div className="mt-3 space-y-2">
-          {pending.length === 0 && (
-            <p className="card text-sm text-muted">Nothing pending. Reality is fast today.</p>
-          )}
-          {pending.map((p) => (
-            <div key={p.id} className="card">
-              <div className="flex items-center justify-between gap-2">
-                <span className="pill">{p.question.category}</span>
-                <span className="text-[11px] uppercase tracking-wider text-muted">
-                  resolves {formatShortDate(p.question.resolutionDate, timeZone)}
-                </span>
-              </div>
-              <p className="mt-2 font-semibold">{p.question.text}</p>
-              <p className="mt-1 text-sm text-muted">
-                You said <strong className="text-ink">{p.answer}</strong> @ {p.confidence}%
-              </p>
-            </div>
-          ))}
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <h2 className="display text-2xl sm:text-3xl">Pending</h2>
+            <p className="text-sm text-muted">
+              Predictions waiting on reality.
+            </p>
+          </div>
+        </div>
+        <div className="mt-3">
+          <PendingCarousel items={pendingItems} />
         </div>
       </section>
 
       <section className="mt-10">
-        <h2 className="display text-2xl sm:text-3xl">Resolved</h2>
-        <p className="text-sm text-muted">Reality has spoken.</p>
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <h2 className="display text-2xl sm:text-3xl">Resolved</h2>
+            <p className="text-sm text-muted">Reality has spoken.</p>
+          </div>
+          {resolved.length > DASHBOARD_RESOLVED_PREVIEW && (
+            <Link
+              href="/dashboard/resolved"
+              className="text-sm font-semibold text-ink underline decoration-accent decoration-2 underline-offset-4 hover:text-ink/80"
+            >
+              View all ({resolved.length})
+            </Link>
+          )}
+        </div>
         <div className="mt-3 space-y-2">
           {resolved.length === 0 && (
-            <p className="card text-sm text-muted">No resolved predictions yet.</p>
+            <p className="card text-sm text-muted">
+              No resolved predictions yet.
+            </p>
           )}
-          {resolved.slice(0, 25).map((p) => {
+          {resolvedPreview.map((p) => {
             const positive = (p.score ?? 0) > 0;
             return (
               <div key={p.id} className="card">
                 <div className="flex items-center justify-between gap-2">
                   <span className="pill">{p.question.category}</span>
-                  <span className={`display text-2xl ${positive ? "text-good" : "text-bad"}`}>
+                  <span
+                    className={`display text-2xl ${
+                      positive ? "text-good" : "text-bad"
+                    }`}
+                  >
                     {positive ? "+" : ""}
                     {p.score}
                   </span>
                 </div>
                 <p className="mt-2 font-semibold">{p.question.text}</p>
                 <p className="mt-1 text-sm text-muted">
-                  You said <strong className="text-ink">{p.answer}</strong> @ {p.confidence}% · Reality said{" "}
-                  <strong className="text-ink">{p.question.correctAnswer}</strong>
+                  You said{" "}
+                  <strong className="text-ink">{p.answer}</strong> @{" "}
+                  {p.confidence}% · Reality said{" "}
+                  <strong className="text-ink">
+                    {p.question.correctAnswer}
+                  </strong>
                 </p>
               </div>
             );
@@ -230,8 +304,20 @@ export default async function DashboardPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="display text-2xl sm:text-3xl">Journal</h2>
-        <p className="text-sm text-muted">What you thought, paired with how it played out.</p>
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <h2 className="display text-2xl sm:text-3xl">Reflections</h2>
+            <p className="text-sm text-muted">
+              Only days you actually wrote or picked reasoning.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/reflections"
+            className="text-sm font-semibold text-ink underline decoration-accent decoration-2 underline-offset-4 hover:text-ink/80"
+          >
+            View reflections
+          </Link>
+        </div>
         <div className="mt-3">
           <Journal days={journalDays} />
         </div>
