@@ -12,6 +12,8 @@ type Row = {
   publishDate: string;
   resolutionDate: string;
   closesToPredictionsAt: string | null;
+  resolutionCriteria: string;
+  sourceUrl: string | null;
   predictionsCount: number;
 };
 

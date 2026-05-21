@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { REASONING_OPTIONS, type ReasoningToken } from "@/lib/reasoning";
 import { hapticLight, hapticSuccess } from "@/lib/native";
 
@@ -26,6 +26,40 @@ export function ReasoningInput({ predictionId, onSubmitted }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [tooltipOpen, setTooltipOpen] = useState(false);
+
+  // Ref points at the card root. We use it on mount to smooth-scroll the
+  // panel into view on phones — without this, the reasoning chips can land
+  // below the fold on ~5.5" devices after the ResultCard pushes everything
+  // down, and the user has no idea they're there.
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll on mount (mobile only). The parent keys this component on
+  // prediction.id, so each new prediction mounts a fresh ReasoningInput,
+  // which is the right cue to bring it into view. We use `block: "center"`
+  // so the ResultCard above stays partially visible (context) and the
+  // disabled "Next question" button below stays visible (next step).
+  //
+  // Mobile gate: matchMedia for touch devices OR narrow viewports. Desktop
+  // users with a full-height window don't need to be moved.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isMobile =
+      window.matchMedia("(max-width: 768px)").matches ||
+      window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+    if (!isMobile) return;
+
+    // Defer one frame so the DOM has its final height (ResultCard above
+    // may animate in via the fade-in class). Without this rAF, iOS Safari
+    // measures the wrong scroll target and lands a few pixels short.
+    const raf = requestAnimationFrame(() => {
+      cardRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   function toggle(token: ReasoningToken) {
     hapticLight();
@@ -64,8 +98,11 @@ export function ReasoningInput({ predictionId, onSubmitted }: Props) {
         return;
       }
       hapticSuccess();
-      setDone(true);
+      // Notify the parent FIRST so it can ungate the "Next question"
+      // button immediately. Order matters: if we flipped `done` first and
+      // the parent's render re-mounted us, the callback would never fire.
       onSubmitted?.();
+      setDone(true);
     } catch {
       setError("Network error.");
     } finally {
@@ -84,9 +121,9 @@ export function ReasoningInput({ predictionId, onSubmitted }: Props) {
   }
 
   return (
-    <div className="card mt-3">
+    <div ref={cardRef} className="card mt-3 scroll-mt-4">
       <div className="flex items-center gap-1.5">
-        <p className="label">Why are you making this prediction?</p>
+        <p className="label">Why did you make this prediction?</p>
         <button
           type="button"
           aria-label="What do these mean?"

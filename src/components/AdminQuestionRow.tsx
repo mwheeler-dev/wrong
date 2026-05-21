@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AdminQuestionForm } from "./AdminQuestionForm";
+import { AdminQuestionRedeployForm } from "./AdminQuestionRedeployForm";
 
 type Question = {
   id: string;
@@ -12,11 +14,16 @@ type Question = {
   publishDate: string;
   resolutionDate: string;
   closesToPredictionsAt: string | null;
+  resolutionCriteria: string;
+  sourceUrl: string | null;
   predictionsCount: number;
 };
 
+type Mode = "view" | "edit" | "redeploy";
+
 export function AdminQuestionRow({ q }: { q: Question }) {
   const router = useRouter();
+  const [mode, setMode] = useState<Mode>("view");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +92,8 @@ export function AdminQuestionRow({ q }: { q: Question }) {
     }
   }
 
+  const isResolved = q.status === "RESOLVED";
+
   return (
     <div className="card">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -111,29 +120,98 @@ export function AdminQuestionRow({ q }: { q: Question }) {
       {error && <p className="mt-2 text-sm text-bad">{error}</p>}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          disabled={busy}
-          className={`btn ${q.correctAnswer === "YES" ? "bg-ink text-paper" : "border border-ink text-ink"}`}
-          onClick={() => resolve("YES")}
-        >
-          Resolve YES
-        </button>
-        <button
-          disabled={busy}
-          className={`btn ${q.correctAnswer === "NO" ? "bg-ink text-paper" : "border border-ink text-ink"}`}
-          onClick={() => resolve("NO")}
-        >
-          Resolve NO
-        </button>
-        {q.status === "RESOLVED" && (
-          <button disabled={busy} className="btn-ghost" onClick={unresolve}>
-            Undo
-          </button>
+        {!isResolved && (
+          <>
+            <button
+              disabled={busy}
+              className={`btn ${q.correctAnswer === "YES" ? "bg-ink text-paper" : "border border-ink text-ink"}`}
+              onClick={() => resolve("YES")}
+            >
+              Resolve YES
+            </button>
+            <button
+              disabled={busy}
+              className={`btn ${q.correctAnswer === "NO" ? "bg-ink text-paper" : "border border-ink text-ink"}`}
+              onClick={() => resolve("NO")}
+            >
+              Resolve NO
+            </button>
+          </>
         )}
+
+        <button
+          type="button"
+          disabled={busy}
+          className="btn-ghost border border-line"
+          onClick={() => setMode(mode === "edit" ? "view" : "edit")}
+        >
+          {mode === "edit" ? "Cancel edit" : "Edit"}
+        </button>
+
+        {isResolved && (
+          <>
+            <button
+              type="button"
+              disabled={busy}
+              className="btn-ghost border border-accent text-ink"
+              onClick={() => setMode(mode === "redeploy" ? "view" : "redeploy")}
+            >
+              {mode === "redeploy" ? "Cancel redeploy" : "Redeploy"}
+            </button>
+            <button disabled={busy} className="btn-ghost" onClick={unresolve}>
+              Undo
+            </button>
+          </>
+        )}
+
         <button disabled={busy} className="btn-ghost text-bad" onClick={remove}>
           Delete
         </button>
       </div>
+
+      {mode === "edit" && (
+        <div className="mt-3 rounded-2xl border border-line bg-paper/40 p-3 sm:p-4">
+          <p className="label">Edit question</p>
+          <p className="mt-1 mb-3 text-xs text-muted">
+            Changes to dates may move this card between Overdue, Live, and
+            Scheduled. Status stays the same.
+          </p>
+          <AdminQuestionForm
+            initial={{
+              id: q.id,
+              text: q.text,
+              category: q.category,
+              resolutionCriteria: q.resolutionCriteria,
+              sourceUrl: q.sourceUrl,
+              publishDate: q.publishDate,
+              resolutionDate: q.resolutionDate,
+              closesToPredictionsAt: q.closesToPredictionsAt,
+            }}
+            onSaved={() => setMode("view")}
+          />
+        </div>
+      )}
+
+      {mode === "redeploy" && (
+        <div className="mt-3 rounded-2xl border border-accent/40 bg-accent/5 p-3 sm:p-4">
+          <p className="label text-ink">Redeploy as new question</p>
+          <p className="mt-1 mb-3 text-xs text-muted">
+            Creates a brand-new pending question with these fields. The
+            original resolved row and all its predictions stay locked and
+            untouched.
+          </p>
+          <AdminQuestionRedeployForm
+            sourceId={q.id}
+            initial={{
+              text: q.text,
+              category: q.category,
+              resolutionCriteria: q.resolutionCriteria,
+              sourceUrl: q.sourceUrl,
+            }}
+            onSaved={() => setMode("view")}
+          />
+        </div>
+      )}
     </div>
   );
 }

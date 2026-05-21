@@ -18,6 +18,8 @@ type QuestionRowInput = {
   publishDate: Date;
   resolutionDate: Date;
   closesToPredictionsAt: Date | null;
+  resolutionCriteria: string;
+  sourceUrl: string | null;
   _count: { predictions: number };
 };
 
@@ -33,6 +35,10 @@ function toRowProps(q: QuestionRowInput) {
     closesToPredictionsAt: q.closesToPredictionsAt
       ? q.closesToPredictionsAt.toISOString()
       : null,
+    // Carried through so the Edit / Redeploy modal can pre-fill without
+    // an extra fetch when the admin opens it.
+    resolutionCriteria: q.resolutionCriteria,
+    sourceUrl: q.sourceUrl,
     predictionsCount: q._count.predictions,
   };
 }

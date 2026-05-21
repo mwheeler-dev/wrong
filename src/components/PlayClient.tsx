@@ -79,6 +79,12 @@ export function PlayClient({
   const [reflection, setReflection] = useState("");
   const [reflectionSaved, setReflectionSaved] = useState(false);
 
+  // Per-prediction reasoning gate. After Lock It In, the user MUST submit
+  // reasoning (at least one chip) before "Next question" becomes
+  // tappable. Distinct from `reflectionSaved` above, which is the
+  // end-of-day DailyReflection on the DoneScreen.
+  const [reasoningSaved, setReasoningSaved] = useState(false);
+
   function recordAnswered(id: string) {
     setAnsweredIds((prev) => {
       if (prev.has(id)) return prev;
@@ -216,6 +222,10 @@ export function PlayClient({
     setConfidence(null);
     setResult(null);
     setError(null);
+    // Reset the per-prediction reasoning gate so the next question's
+    // ReasoningInput starts fresh — and "Next question" goes back to
+    // disabled-until-saved on the next card.
+    setReasoningSaved(false);
   }
 
   async function lockIn() {
@@ -372,20 +382,27 @@ export function PlayClient({
               crowd={result.crowd}
               feedback={result.feedback}
             />
-            {/* Optional per-prediction reasoning capture. Submitting is
-                gated on at least one chip; the user can also skip by
-                hitting Next question. Keyed on prediction.id so each
-                question gets a fresh panel. */}
+            {/* Per-prediction reasoning capture. Required before advancing:
+                "Next question" stays disabled until ReasoningInput calls
+                onSubmitted. Keyed on prediction.id so each question gets a
+                fresh panel and the chips reset between predictions. */}
             <ReasoningInput
               key={result.prediction.id}
               predictionId={result.prediction.id}
+              onSubmitted={() => setReasoningSaved(true)}
             />
             <button
               onClick={goNext}
+              disabled={!reasoningSaved}
               className="btn-primary mt-3 w-full text-base sm:mt-4"
             >
               {allDoneToday ? "Finish" : "Next question"}
             </button>
+            {!reasoningSaved && (
+              <p className="mt-2 text-center text-xs text-muted">
+                Save your reasoning to continue.
+              </p>
+            )}
           </>
         ) : current ? (
           <>

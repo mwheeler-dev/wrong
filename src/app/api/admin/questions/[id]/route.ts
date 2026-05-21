@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { CATEGORIES } from "@/lib/scoring";
@@ -102,6 +103,15 @@ export async function PATCH(req: Request, ctx: { params: { id: string } }) {
   }
 
   const updated = await prisma.question.update({ where: { id }, data });
+
+  // Date changes can move a card between Overdue / Live / Scheduled, and
+  // make a previously-closed question answerable again. Invalidate all the
+  // pages that read question state so the move is visible immediately.
+  revalidatePath("/admin");
+  revalidatePath("/play");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/resolved");
+
   return NextResponse.json({ question: updated });
 }
 
@@ -109,5 +119,11 @@ export async function DELETE(_req: Request, ctx: { params: { id: string } }) {
   const { response } = await requireAdmin();
   if (response) return response;
   await prisma.question.delete({ where: { id: ctx.params.id } });
+
+  revalidatePath("/admin");
+  revalidatePath("/play");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/resolved");
+
   return NextResponse.json({ ok: true });
 }

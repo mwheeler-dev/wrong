@@ -8,7 +8,20 @@
       "PowerShell(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\marqu\\\\wrong\\\\prisma\\\\migrations\\\\20260520000000_add_prediction_reflection\" -Force)",
       "PowerShell(\"ok\")",
       "Bash(npx prisma *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "PowerShell($content = Get-Content \"C:\\\\Users\\\\marqu\\\\wrong\\\\prisma\\\\schema.prisma\" -Raw; $idx = $content.IndexOf\\('provider'\\); for \\($i=0; $i -lt 3; $i++\\) { $line = \\($content.Substring\\($idx\\) -split \"`n\"\\)[$i]; $bytes = [System.Text.Encoding]::UTF8.GetBytes\\($line\\); \"Line ${i}: $line\"; \"Hex: \" + \\(\\($bytes | ForEach-Object { '{0:X2}' -f $_ }\\) -join ' '\\); \"\" })",
+      "PowerShell($content = Get-Content \"C:\\\\Users\\\\marqu\\\\wrong\\\\prisma\\\\schema.prisma\" -Raw; $idx = $content.IndexOf\\('provider', $content.IndexOf\\('datasource'\\)\\); $line = \\($content.Substring\\($idx\\) -split \"`n\"\\)[0]; $bytes = [System.Text.Encoding]::UTF8.GetBytes\\($line\\); \"Datasource provider line: $line\"; \"Length: $\\($bytes.Length\\)\"; \"Hex: \" + \\(\\($bytes | ForEach-Object { '{0:X2}' -f $_ }\\) -join ' '\\))",
+      "PowerShell($schemaBytes = [System.IO.File]::ReadAllBytes\\(\"C:\\\\Users\\\\marqu\\\\wrong\\\\prisma\\\\schema.prisma\"\\); \"First 4 bytes of schema.prisma: \" + \\(\\($schemaBytes[0..3] | ForEach-Object { '{0:X2}' -f $_ }\\) -join ' '\\))",
+      "PowerShell(\"---\")",
+      "PowerShell($clean = \"provider = `\"postgresql`\"`n\"; [System.IO.File]::WriteAllBytes\\(\"C:\\\\Users\\\\marqu\\\\wrong\\\\prisma\\\\migrations\\\\migration_lock.toml\", [System.Text.Encoding]::UTF8.GetBytes\\($clean\\)\\); $verify = [System.IO.File]::ReadAllBytes\\(\"C:\\\\Users\\\\marqu\\\\wrong\\\\prisma\\\\migrations\\\\migration_lock.toml\"\\); \"New length: $\\($verify.Length\\)\"; \"Hex: \" + \\(\\($verify | ForEach-Object { '{0:X2}' -f $_ }\\) -join ' '\\); \"Decoded: \" + [System.Text.Encoding]::UTF8.GetString\\($verify\\))",
+      "Bash(cat > *)",
+      "Bash(node -e ' *)",
+      "Bash(git commit *)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }
