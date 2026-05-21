@@ -41,7 +41,15 @@ export type ThinkingProfile =
       totalWithReasoning: number;
       totalResolvedWithReasoning: number;
       styles: StyleStat[];
-      mostUsed: StyleStat | null;
+      /**
+       * All styles tied for the highest `uses` count. One entry in the
+       * common case; up to 3 when usage is evenly distributed. Empty
+       * array means no chips have been used at all (the renderer hides
+       * the headline). We return an array — not a single winner — so
+       * the UI can say "Research and Intuition" instead of breaking
+       * the tie arbitrarily and showing only one.
+       */
+      mostUsed: StyleStat[];
       /** Highest-accuracy style with at least MIN_SAMPLE resolved. */
       bestPerforming: StyleStat | null;
       /** Optional single category nudge — strongest (category, token) pair. */
@@ -110,13 +118,15 @@ export function computeThinkingProfile(
     };
   });
 
-  // Tie-break for most-used: more uses first, then alphabetical token to be
-  // deterministic. The user shouldn't see "Research" one day and
-  // "Experience" the next on the same data.
-  const sortedByUse = [...styles].sort(
-    (a, b) => b.uses - a.uses || a.token.localeCompare(b.token),
-  );
-  const mostUsed = sortedByUse[0]?.uses > 0 ? sortedByUse[0] : null;
+  // Most-used: every style tied for the max `uses` count. We deliberately
+  // DO NOT alphabetically tie-break to a single winner — a 4/4/1 split
+  // should read "Research and Intuition", not arbitrarily pick one. We
+  // still order the returned array by the canonical REASONING_TOKENS
+  // sequence so the sentence renders deterministically ("Research and
+  // Intuition" vs "Intuition and Research" on the same data).
+  const maxUses = styles.reduce((m, s) => Math.max(m, s.uses), 0);
+  const mostUsed: StyleStat[] =
+    maxUses === 0 ? [] : styles.filter((s) => s.uses === maxUses);
 
   // Best performer: highest accuracyPct (non-null), tie-break by larger
   // sample, then alphabetical. Must have >= MIN_SAMPLE resolved.

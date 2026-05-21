@@ -1,7 +1,45 @@
+import { Fragment } from "react";
 import type { ThinkingProfile } from "@/lib/thinkingProfile";
-import { REASONING_OPTIONS } from "@/lib/reasoning";
+import { REASONING_OPTIONS, type ReasoningToken } from "@/lib/reasoning";
 
 const LABEL = new Map(REASONING_OPTIONS.map((o) => [o.token, o.label] as const));
+
+/**
+ * Renders a list of reasoning style names as a natural-language phrase.
+ * Style names get the lime accent; commas and "and" stay default black so
+ * the sentence reads as English, not a row of glowing pills.
+ *
+ * 1 → "Research"
+ * 2 → "Research and Intuition"
+ * 3 → "Research, Experience, and Intuition" (Oxford comma)
+ */
+function renderStyleList(tokens: ReasoningToken[]): React.ReactNode {
+  if (tokens.length === 0) return null;
+  if (tokens.length === 1) {
+    return <span className="text-accent">{LABEL.get(tokens[0])}</span>;
+  }
+  if (tokens.length === 2) {
+    return (
+      <>
+        <span className="text-accent">{LABEL.get(tokens[0])}</span> and{" "}
+        <span className="text-accent">{LABEL.get(tokens[1])}</span>
+      </>
+    );
+  }
+  const last = tokens[tokens.length - 1];
+  const head = tokens.slice(0, -1);
+  return (
+    <>
+      {head.map((t, i) => (
+        <Fragment key={t}>
+          <span className="text-accent">{LABEL.get(t)}</span>
+          {i < head.length - 1 ? ", " : ", and "}
+        </Fragment>
+      ))}
+      <span className="text-accent">{LABEL.get(last)}</span>
+    </>
+  );
+}
 
 export function ThinkingProfile({ profile }: { profile: ThinkingProfile }) {
   if (profile.state === "empty") {
@@ -27,10 +65,21 @@ export function ThinkingProfile({ profile }: { profile: ThinkingProfile }) {
         </p>
       </div>
 
-      {mostUsed && (
-        <p className="display mt-2 text-xl sm:text-2xl">
-          You mostly predict from{" "}
-          <span className="text-accent">{LABEL.get(mostUsed.token)}</span>.
+      {mostUsed.length > 0 && (
+        <p
+          className={`display mt-2 sm:text-2xl ${
+            // Shrink only this sentence on mobile when 2+ styles tie, so
+            // "Research and Intuition" / "Research, Experience, and
+            // Intuition" stays on one line on a 375px viewport. Desktop
+            // sizing is unchanged.
+            mostUsed.length >= 3
+              ? "text-base tracking-tight"
+              : mostUsed.length === 2
+                ? "text-lg"
+                : "text-xl"
+          }`}
+        >
+          You mostly predict from {renderStyleList(mostUsed.map((s) => s.token))}.
         </p>
       )}
 

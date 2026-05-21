@@ -226,6 +226,14 @@ export function PlayClient({
     // ReasoningInput starts fresh — and "Next question" goes back to
     // disabled-until-saved on the next card.
     setReasoningSaved(false);
+    // CRITICAL: only refresh server state AFTER the user has cleared the
+    // ResultCard + ReasoningInput screen. Calling router.refresh() inside
+    // lockIn() used to unmount this component on the final prediction —
+    // the server saw todayCount === DAILY_CAP, switched to PlayEmptyState,
+    // and the user never saw the Q10 reasoning gate. By deferring the
+    // refresh to here, the cap-reached transition happens cleanly AFTER
+    // reasoning has been saved and the user has tapped Finish.
+    router.refresh();
   }
 
   async function lockIn() {
@@ -267,7 +275,9 @@ export function PlayClient({
           if (typeof data.todayCount === "number") {
             setTodayCount(data.todayCount);
           }
-          router.refresh();
+          // Server refresh happens inside goNext() — see the goNext
+          // comment. Important on Q10: refreshing here would unmount the
+          // component before the user sees anything past the duplicate.
           setSubmitting(false);
           goNext();
           return;
@@ -317,7 +327,11 @@ export function PlayClient({
         }
       }
       setResult(data);
-      router.refresh();
+      // No router.refresh() here. On the final daily question the
+      // server returns PlayEmptyState (cap-reached) instead of
+      // PlayClient when remainingToday hits 0, which would unmount the
+      // component and skip the reasoning gate. The refresh runs in
+      // goNext() AFTER the user has saved reasoning and advanced.
     } catch {
       setError("Network error.");
     } finally {
