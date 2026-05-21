@@ -97,7 +97,7 @@ export function AdminQuestionRedeployForm({ sourceId, initial, onSaved }: Props)
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "Could not redeploy.");
+        setError(data.error || "Could not duplicate.");
         setBusy(false);
         return;
       }
@@ -221,7 +221,7 @@ export function AdminQuestionRedeployForm({ sourceId, initial, onSaved }: Props)
 
       <div className="flex justify-end">
         <button disabled={busy} className="btn-accent">
-          {busy ? "Redeploying…" : "Redeploy as new pending"}
+          {busy ? "Duplicating…" : "Create duplicate"}
         </button>
       </div>
     </form>

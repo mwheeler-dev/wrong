@@ -4,21 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
 import { CATEGORIES } from "@/lib/scoring";
 
-// Duplicate a RESOLVED question into a brand-new PENDING question.
+// Duplicate any existing question into a brand-new PENDING question.
 //
-// IMPORTANT: this is intentionally NOT "reopen the original". The original
-// question's resolved predictions are scored, calibration-counted, and live
-// in users' history. Flipping its status back to PENDING would corrupt that
-// data. Instead we COPY the question text/category/source/criteria into a
-// fresh row with a new id and let the new round of predictions live there.
+// This is the canonical "reuse a card" operation. The new row has its own
+// id, fresh dates, no predictions, and no score — totally independent of
+// the source. The source row (whatever status it's in) is never touched.
+// Users who already predicted on the source can answer the duplicate
+// because the unique constraint is (userId, questionId), keyed on id.
 //
-// Behaviour:
-//   * Source question must exist and be RESOLVED (we won't redeploy a
-//     PENDING one — use plain Edit to push dates forward instead).
-//   * Caller supplies the new publish/close/resolution dates. Everything
-//     else defaults to a copy of the source.
-//   * New question has its own id, status='PENDING', correctAnswer=null,
-//     and NO predictions. The source row is untouched.
+// Works on ANY source status — Overdue, Live, Scheduled, Resolved. We do
+// NOT flip the source to PENDING, copy predictions, or rescore. Editing
+// dates on the source is a separate operation (PATCH on /questions/[id]);
+// that's the right tool when you want to keep the same question id and
+// keep existing predictions intact.
 export async function POST(req: Request, ctx: { params: { id: string } }) {
   const { response } = await requireAdmin();
   if (response) return response;
@@ -38,12 +36,6 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
   });
   if (!source) {
     return NextResponse.json({ error: "Question not found" }, { status: 404 });
-  }
-  if (source.status !== "RESOLVED") {
-    return NextResponse.json(
-      { error: "Only RESOLVED questions can be redeployed. Use Edit for pending rows." },
-      { status: 400 },
-    );
   }
 
   // Allow the admin to override copied fields, but default to the source row

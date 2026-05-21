@@ -64,7 +64,12 @@ export default async function PlayPage() {
   //   status   = PENDING
   //   publish  <= now
   //   close    > now  (with legacy fallback to resolutionDate when null)
-  //   user has not already predicted this question
+  //   user has not already predicted this question (by question id)
+  //
+  // CRITICAL: "already predicted" is keyed strictly on Question.id via the
+  // relation filter below — never on text, category, or any copied field.
+  // That's what makes Duplicate Card work: a duplicate gets a fresh id,
+  // so even a user who answered the source row sees the duplicate here.
   //
   // Use explicit AND + equals:null inside the OR so the clause is robust
   // against Prisma shorthand differences. Same SQL, fewer footguns.

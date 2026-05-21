@@ -148,20 +148,23 @@ export function AdminQuestionRow({ q }: { q: Question }) {
           {mode === "edit" ? "Cancel edit" : "Edit"}
         </button>
 
+        {/* Duplicate Card — works on EVERY status. Creates a fresh PENDING
+            question with a new id; the source row stays untouched. Use
+            this any time you want users (including those who already
+            answered the original) to play the same prompt again. */}
+        <button
+          type="button"
+          disabled={busy}
+          className="btn-ghost border border-accent text-ink"
+          onClick={() => setMode(mode === "redeploy" ? "view" : "redeploy")}
+        >
+          {mode === "redeploy" ? "Cancel duplicate" : "Duplicate Card"}
+        </button>
+
         {isResolved && (
-          <>
-            <button
-              type="button"
-              disabled={busy}
-              className="btn-ghost border border-accent text-ink"
-              onClick={() => setMode(mode === "redeploy" ? "view" : "redeploy")}
-            >
-              {mode === "redeploy" ? "Cancel redeploy" : "Redeploy"}
-            </button>
-            <button disabled={busy} className="btn-ghost" onClick={unresolve}>
-              Undo
-            </button>
-          </>
+          <button disabled={busy} className="btn-ghost" onClick={unresolve}>
+            Undo
+          </button>
         )}
 
         <button disabled={busy} className="btn-ghost text-bad" onClick={remove}>
@@ -171,10 +174,12 @@ export function AdminQuestionRow({ q }: { q: Question }) {
 
       {mode === "edit" && (
         <div className="mt-3 rounded-2xl border border-line bg-paper/40 p-3 sm:p-4">
-          <p className="label">Edit question</p>
+          <p className="label">Edit this card</p>
           <p className="mt-1 mb-3 text-xs text-muted">
-            Changes to dates may move this card between Overdue, Live, and
-            Scheduled. Status stays the same.
+            Edits the existing card in place. Same id, same predictions.
+            Date changes can move it between Overdue / Live / Scheduled.
+            Users who already answered won&rsquo;t see it again — use
+            Duplicate Card for that.
           </p>
           <AdminQuestionForm
             initial={{
@@ -194,11 +199,12 @@ export function AdminQuestionRow({ q }: { q: Question }) {
 
       {mode === "redeploy" && (
         <div className="mt-3 rounded-2xl border border-accent/40 bg-accent/5 p-3 sm:p-4">
-          <p className="label text-ink">Redeploy as new question</p>
+          <p className="label text-ink">Duplicate this card</p>
           <p className="mt-1 mb-3 text-xs text-muted">
-            Creates a brand-new pending question with these fields. The
-            original resolved row and all its predictions stay locked and
-            untouched.
+            Creates a brand-new pending question with a new id. The
+            original card and all its predictions stay untouched. Anyone
+            who answered the original can answer this duplicate because
+            it&rsquo;s a different id.
           </p>
           <AdminQuestionRedeployForm
             sourceId={q.id}
