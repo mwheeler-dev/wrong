@@ -227,8 +227,9 @@ export default async function DashboardPage() {
           hint={`${predictions.length} predictions`}
         />
         <ScoreCard
-          label="Most dangerous"
+          label="Most dangerous confidence"
           value={dangerousLevel == null ? "—" : `${dangerousLevel}%`}
+          unit={dangerousLevel == null ? undefined : "confidence"}
           hint={dangerousConfidenceLine(dangerousLevel)}
         />
       </section>
