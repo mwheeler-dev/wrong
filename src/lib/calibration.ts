@@ -56,20 +56,25 @@ export type CalibrationCopy = {
   verdict: CalibrationVerdict;
 };
 
-// Narrative ledes — what the user is communicating by choosing that level
-const LEDE_BY_LEVEL: Record<Confidence, string> = {
-  60: "You wager 60% confidence.",
-  70: "You sound sure.",
-  80: "You think you know.",
-  90: "You’re certain.",
-};
+// Per-row lede now spells out the bet AND the resolved count, so the
+// sentence stands alone even if a user skims past the eyebrow header
+// above. Past tense ("selected", "agreed") so the row reads as history,
+// not as a real-time wager.
+function ledeFor(level: Confidence, total: number): string {
+  if (total === 0) {
+    return `No ${level}% confidence predictions resolved yet.`;
+  }
+  return `You selected ${level}% confidence on ${total} resolved question${
+    total === 1 ? "" : "s"
+  }.`;
+}
 
 export function calibrationCopyFor(
   level: Confidence,
   accuracy: number | null,
   total: number,
 ): CalibrationCopy {
-  const lede = LEDE_BY_LEVEL[level];
+  const lede = ledeFor(level, total);
 
   if (accuracy == null || total === 0) {
     return {
@@ -79,7 +84,9 @@ export function calibrationCopyFor(
     };
   }
 
-  const response = `Reality agrees ${accuracy}% of the time.`;
+  // Match the lede's past tense — these are resolved outcomes, not a
+  // running average that's still moving.
+  const response = `Reality agreed ${accuracy}% of the time.`;
   const gap = accuracy - level;
 
   // Special-case the "you said 90% AND you were almost always right" callout.
@@ -152,14 +159,16 @@ export function calibrationVerdict(rows: CalibrationRow[]): string {
   const candidates = withData.filter((r) => r.total >= 3);
   if (candidates.length === 0) return "Calibration loading. Keep predicting.";
 
-  // Every verdict line ALWAYS spells out "confidence" so the user is never
-  // left guessing what the percentage refers to.
+  // Every verdict line ALWAYS spells out "confidence" AND the resolved
+  // count so the user is never left guessing what the percentage refers
+  // to or how thin the sample is.
   const worst = [...candidates].sort((a, b) => a.gap - b.gap)[0];
+  const q = `${worst.total} resolved question${worst.total === 1 ? "" : "s"}`;
   if (worst.gap >= -5) {
     return "Your confidence and reality agree. Suspicious.";
   }
   if (worst.gap <= -15) {
-    return `You speak with ${worst.level}% confidence. Reality only agrees ${worst.accuracy}% of the time.`;
+    return `You picked ${worst.level}% confidence on ${q}. Reality only agreed ${worst.accuracy}% of the time.`;
   }
-  return `At ${worst.level}% confidence, you trust yourself more than reality does.`;
+  return `At ${worst.level}% confidence (${q}), you trust yourself more than reality does.`;
 }

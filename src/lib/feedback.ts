@@ -14,8 +14,11 @@ export function resultFeedback(opts: {
 }
 
 export function dangerousConfidenceLine(level: number | null): string {
-  if (level == null) return "No dangerous confidence yet. Stay tuned.";
-  return `You love ${level}%. Reality doesn't.`;
+  if (level == null) return "No dangerous confidence level yet. Stay tuned.";
+  // The ScoreCard `hint` is the only line of supporting copy beneath the
+  // big "%" value, so it has to read as a complete sentence on its own —
+  // not a riff that depends on the label above it.
+  return `Selecting ${level}% confidence is hurting your accuracy.`;
 }
 
 export function dailyTagline(): string {

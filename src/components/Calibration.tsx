@@ -101,12 +101,12 @@ function CalibrationRowView({ row }: { row: CalibrationRow }) {
         <span>
           {hasData ? (
             <>
-              <strong className="text-ink">{accuracy}%</strong>
+              <strong className="text-ink">{accuracy}%</strong> accuracy
               <span className="mx-1">·</span>
-              {row.correct}/{row.total}
+              {row.correct}/{row.total} correct
             </>
           ) : (
-            "no reps"
+            "No resolved questions yet."
           )}
         </span>
         {row.gap != null && (

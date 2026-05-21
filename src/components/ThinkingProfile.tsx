@@ -154,7 +154,8 @@ export function ThinkingProfile({ profile }: { profile: ThinkingProfile }) {
           </span>
           -based calls are landing best right now —{" "}
           <span className="tabular-nums">
-            {bestPerforming.accuracyPct}% on {bestPerforming.resolved} resolved
+            {bestPerforming.accuracyPct}% accuracy on {bestPerforming.resolved}{" "}
+            resolved question{bestPerforming.resolved === 1 ? "" : "s"}
           </span>
           .
         </p>
@@ -175,7 +176,8 @@ export function ThinkingProfile({ profile }: { profile: ThinkingProfile }) {
           </span>{" "}
           picks are strongest —{" "}
           <span className="tabular-nums">
-            {categoryNudge.accuracyPct}% on {categoryNudge.resolved} resolved
+            {categoryNudge.accuracyPct}% accuracy on {categoryNudge.resolved}{" "}
+            resolved question{categoryNudge.resolved === 1 ? "" : "s"}
           </span>
           .
         </p>
