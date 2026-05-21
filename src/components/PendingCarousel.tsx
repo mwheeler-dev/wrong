@@ -105,12 +105,18 @@ export function PendingCarousel({ items }: Props) {
         ref={scrollerRef}
         className="pending-carousel mt-3 -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         style={{
-          // Equal peek on both sides so the active card sits dead center.
-          // 5rem = 80px peek + padding spec'd in CSS to read like a wheel.
-          paddingLeft: "calc(1.25rem + 2rem)",
-          paddingRight: "calc(1.25rem + 2rem)",
-          scrollPaddingLeft: "calc(1.25rem + 2rem)",
-          scrollPaddingRight: "calc(1.25rem + 2rem)",
+          // The first card should sit flush with the surrounding wrap
+          // padding (1.25rem = 20px) — same gutter as every other section
+          // on the page. The previous version added an extra 2rem on the
+          // left, which left a phantom card-shaped gap at the start and
+          // made the carousel look mid-scroll on first paint.
+          //
+          // Right-side padding is generous so the LAST card can still snap
+          // to start without sticking to the viewport edge.
+          paddingLeft: "1.25rem",
+          paddingRight: "3rem",
+          scrollPaddingLeft: "1.25rem",
+          scrollPaddingRight: "1.25rem",
         }}
       >
         {items.map((item, idx) => (
@@ -118,11 +124,15 @@ export function PendingCarousel({ items }: Props) {
             key={item.id}
             data-slide
             data-index={idx}
-            className="relative w-[calc(100vw-7rem)] max-w-[24rem] shrink-0 snap-center"
+            // snap-start (not center) so the first card rests at the left
+            // gutter on initial render. The next card peeks ~2rem on the
+            // right because the card width is narrower than the available
+            // horizontal space.
+            className="relative w-[calc(100vw-3rem)] max-w-[22rem] shrink-0 snap-start"
           >
             <div
               className={`card h-full transition ${
-                item.overdue ? "border-accent/40 shadow-[0_0_0_1px_rgba(217,255,0,0.25)]" : ""
+                item.overdue ? "border-accent/40 shadow-[0_0_0_1px_rgba(184,240,0,0.3)]" : ""
               }`}
             >
               <div className="flex items-center justify-between gap-2">

@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RESOURCES = join(__dirname, "..", "resources");
 
-const NEON = "#C8FF3E";
+const NEON = "#B8F000";
 const INK = "#0A0A0A";
 const PAPER = "#FFFFFF";
 

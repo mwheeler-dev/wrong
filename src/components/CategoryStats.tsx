@@ -31,14 +31,14 @@ function CategoryCard({ stat }: { stat: CategoryStat }) {
     !hasData
       ? "before:bg-ink/5"
       : tone === "positive"
-        ? "before:bg-accent before:shadow-[0_0_12px_rgba(217,255,0,0.45)]"
+        ? "before:bg-accent before:shadow-[0_0_12px_rgba(184,240,0,0.5)]"
         : tone === "negative"
           ? "before:bg-bad before:shadow-[0_0_12px_rgba(220,38,38,0.35)]"
           : "before:bg-ink/15";
 
   const hoverGlow =
     tone === "positive"
-      ? "hover:border-accent/60 hover:shadow-[0_0_30px_rgba(217,255,0,0.14)]"
+      ? "hover:border-accent/60 hover:shadow-[0_0_30px_rgba(184,240,0,0.18)]"
       : tone === "negative"
         ? "hover:border-bad/40 hover:shadow-[0_0_30px_rgba(220,38,38,0.10)]"
         : "hover:border-ink/30";

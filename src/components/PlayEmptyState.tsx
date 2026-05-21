@@ -99,7 +99,7 @@ export function PlayEmptyState({
         </p>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink/10">
           <div
-            className="h-full bg-accent shadow-[0_0_12px_rgba(217,255,0,0.5)] transition-all"
+            className="h-full bg-accent shadow-[0_0_12px_rgba(184,240,0,0.55)] transition-all"
             style={{ width: `${progressPct}%` }}
           />
         </div>

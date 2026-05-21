@@ -80,9 +80,12 @@ export function buildJournal(
   for (const p of predictions) {
     const reasoning = readReasoning(p.reflection?.reasoning);
     const hasText = !!p.reflection?.text && p.reflection.text.trim() !== "";
-    const hasChips = reasoning.length > 0;
-    // Skip predictions the user never reflected on — no chips, no text.
-    if (!hasChips && !hasText) continue;
+    // Reflections is for ACTUAL written reflections only. Reasoning chips
+    // alone don't qualify a prediction — they always exist now (the chip
+    // step is required on /play) so including chip-only rows would turn
+    // Reflections into "every answered card" again. Thinking Profile is
+    // the right home for chip-only signal; this section is for words.
+    if (!hasText) continue;
 
     const k = dayKeyInTz(p.createdAt, tz);
     bucket(k).entries.push({

@@ -355,7 +355,7 @@ function Chip({
       aria-pressed={on}
       className={`min-h-[34px] rounded-full px-3 py-1 text-xs font-semibold transition active:scale-[0.98] ${
         on
-          ? "border-2 border-accent bg-accent/15 text-ink shadow-[0_0_0_3px_rgba(217,255,0,0.18)]"
+          ? "border-2 border-accent bg-accent/15 text-ink shadow-[0_0_0_3px_rgba(184,240,0,0.22)]"
           : "border border-ink/15 bg-white text-ink hover:border-ink"
       }`}
     >

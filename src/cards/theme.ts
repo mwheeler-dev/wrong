@@ -4,7 +4,7 @@
 export const COLORS = {
   ink: "#0A0A0A",
   paper: "#FAFAFA",
-  lime: "#D9FF00",
+  lime: "#B8F000",
   // Muted variants for footers / counters
   paperDim: "rgba(250,250,250,0.55)",
   inkDim: "rgba(10,10,10,0.55)",

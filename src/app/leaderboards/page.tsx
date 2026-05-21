@@ -158,7 +158,7 @@ export default async function LeaderboardsPage({
               href={`/leaderboards?tab=category&category=${encodeURIComponent(c)}`}
               className={`pill inline-flex items-center gap-1.5 transition ${
                 c === category
-                  ? "border-ink bg-ink text-paper shadow-[0_0_18px_rgba(217,255,0,0.18)]"
+                  ? "border-ink bg-ink text-paper shadow-[0_0_18px_rgba(184,240,0,0.22)]"
                   : "hover:border-ink"
               }`}
             >

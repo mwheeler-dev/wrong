@@ -48,7 +48,7 @@ export function LeaderboardTable({ rows, highlightUserId }: Props) {
           const rowBg = isYou ? "bg-accent/30" : podiumBg;
           const rankClass =
             rank === 1
-              ? "text-accent drop-shadow-[0_0_8px_rgba(217,255,0,0.55)]"
+              ? "text-accent drop-shadow-[0_0_8px_rgba(184,240,0,0.6)]"
               : rank === 2
                 ? "text-accent/85"
                 : rank === 3
@@ -63,7 +63,7 @@ export function LeaderboardTable({ rows, highlightUserId }: Props) {
                 <span
                   aria-hidden
                   className={`absolute left-0 top-0 h-full w-[3px] ${accentBarOpacity} ${
-                    rank === 1 ? "shadow-[0_0_12px_rgba(217,255,0,0.55)]" : ""
+                    rank === 1 ? "shadow-[0_0_12px_rgba(184,240,0,0.6)]" : ""
                   }`}
                 />
               )}
