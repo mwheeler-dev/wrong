@@ -75,16 +75,22 @@ function CalibrationRowView({ row }: { row: CalibrationRow }) {
         <span className="text-muted">{copy.response}</span>
       </p>
 
-      {/* Calibration bar — accuracy fill + expected-confidence marker */}
+      {/* Calibration bar — accuracy fill + expected-confidence marker.
+          Bar color follows the verdict tone, with the elite tier getting
+          a soft lime glow to match the brand's celebration cue. */}
       <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-ink/10">
         {hasData && (
           <div
             className={`h-full ${
-              copy.verdict.tone === "good"
-                ? "bg-good"
-                : copy.verdict.tone === "bad"
-                  ? "bg-bad"
-                  : "bg-ink"
+              copy.verdict.tone === "elite"
+                ? "bg-accent shadow-[0_0_12px_rgba(184,240,0,0.55)]"
+                : copy.verdict.tone === "good"
+                  ? "bg-good"
+                  : copy.verdict.tone === "ok"
+                    ? "bg-amber-500"
+                    : copy.verdict.tone === "bad"
+                      ? "bg-bad"
+                      : "bg-ink"
             }`}
             style={{ width: `${Math.min(100, accuracy as number)}%` }}
           />
@@ -110,11 +116,14 @@ function CalibrationRowView({ row }: { row: CalibrationRow }) {
           )}
         </span>
         {row.gap != null && (
+          // Color the gap by VERDICT tone, not by sign. A small negative
+          // gap with elite accuracy shouldn't read red — the headline is
+          // the accuracy, and the gap is a side annotation.
           <span
             className={
-              row.gap < 0
+              copy.verdict.tone === "bad"
                 ? "text-bad"
-                : row.gap > 0
+                : copy.verdict.tone === "elite" || copy.verdict.tone === "good"
                   ? "text-good"
                   : "text-muted"
             }
@@ -135,12 +144,26 @@ function VerdictPill({ copy }: { copy: CalibrationCopy }) {
       ? "text-good"
       : tone === "bad"
         ? "text-bad"
-        : tone === "neutral"
-          ? "text-muted"
-          : "text-ink";
+        : tone === "ok"
+          ? "text-amber-600"
+          : tone === "neutral"
+            ? "text-muted"
+            : "text-ink";
   return (
     <div className="text-right">
-      <p className={`text-sm font-bold ${colorClass}`}>{copy.verdict.label}</p>
+      <p
+        className={`flex items-center justify-end gap-1.5 text-sm font-bold ${colorClass}`}
+      >
+        {/* Lime dot prefix on elite — the verdict label itself stays ink
+            because lime text on white is hard to read at small sizes. */}
+        {tone === "elite" && (
+          <span
+            aria-hidden
+            className="inline-block h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_6px_rgba(184,240,0,0.65)]"
+          />
+        )}
+        {copy.verdict.label}
+      </p>
       <p className="text-xs text-muted">{copy.verdict.line}</p>
     </div>
   );

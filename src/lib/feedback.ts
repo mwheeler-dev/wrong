@@ -13,11 +13,33 @@ export function resultFeedback(opts: {
   return "Reality scored you. Sorry.";
 }
 
-export function dangerousConfidenceLine(level: number | null): string {
-  if (level == null) return "No dangerous confidence level yet. Stay tuned.";
-  // The ScoreCard `hint` is the only line of supporting copy beneath the
-  // big "%" value, so it has to read as a complete sentence on its own —
-  // not a riff that depends on the label above it.
+/**
+ * "high"  - The level is genuinely bad: high-conf overreach (≥80% conf
+ *           with <60% accuracy) or low accuracy (<55%). Tile uses the
+ *           strong "Most dangerous confidence" framing.
+ * "watch" - Weakest of the user's confidence levels, but not actually
+ *           bad. Tile uses softer "Watch this confidence" framing so we
+ *           don't manufacture a warning out of borderline-ok data.
+ * "none"  - Nothing to flag. Every level is performing OK or better.
+ */
+export type DangerSeverity = "high" | "watch" | "none";
+
+export function dangerousConfidenceLabel(severity: DangerSeverity): string {
+  if (severity === "none") return "No weak confidence yet";
+  if (severity === "watch") return "Watch this confidence";
+  return "Most dangerous confidence";
+}
+
+export function dangerousConfidenceLine(
+  level: number | null,
+  severity: DangerSeverity = "high",
+): string {
+  if (level == null) {
+    return "Every confidence level is landing. No weak spot yet.";
+  }
+  if (severity === "watch") {
+    return `You’re above coin-flip at ${level}% confidence, but it’s your weakest level.`;
+  }
   return `Selecting ${level}% confidence is hurting your accuracy.`;
 }
 

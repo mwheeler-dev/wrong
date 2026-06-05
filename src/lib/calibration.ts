@@ -42,7 +42,18 @@ export function computeCalibration(
 // reflective ("Sharp call. Reality nods."), and sharp ("Reality pushes back.")
 // We avoid mean-spirited copy — the goal is psychological revelation, not insult.
 
-type Tone = "good" | "close" | "bad" | "neutral";
+// Tone drives the row's bar color and verdict-pill color. Accuracy is the
+// headline (the user's "how often is reality on my side"), so the ladder
+// here rewards strong accuracy first and only flips to "bad" on either
+// genuinely low accuracy OR high-confidence overreach.
+//
+//   elite   - special green (lime). Confident AND accurate, or strong
+//             read at any confidence.
+//   good    - green. Solid accuracy regardless of confidence.
+//   ok      - amber. Above coin-flip but not dominant.
+//   bad     - red. Either accuracy < 55, or 80%+ confidence below 60%.
+//   neutral - no data / pre-threshold.
+type Tone = "elite" | "good" | "ok" | "bad" | "neutral";
 
 export type CalibrationVerdict = {
   label: string;
@@ -87,66 +98,86 @@ export function calibrationCopyFor(
   // Match the lede's past tense — these are resolved outcomes, not a
   // running average that's still moving.
   const response = `Reality agreed ${accuracy}% of the time.`;
-  const gap = accuracy - level;
 
-  // Special-case the "you said 90% AND you were almost always right" callout.
-  if (level >= 80 && accuracy >= 90 && total >= 2) {
+  // ── Interpretation ladder ───────────────────────────────────────────
+  // Order matters. We evaluate top-down:
+  //   1. Per-confidence "elite" thresholds. These celebrate strong
+  //      accuracy at the right confidence level — including the
+  //      "underconfident" case (60% conf, ≥70% acc: "trust yourself
+  //      more"). Calibration gap, by itself, never produces a bad label
+  //      here; only weak accuracy or high-conf overreach does.
+  //   2. High-confidence danger. 80% or 90% conf below 60% accuracy is
+  //      always red — the wager is too big relative to the hit rate.
+  //   3. General accuracy buckets. ≥65 green, 55–64 amber, <55 red.
+  //      Confidence level no longer matters at this point — accuracy
+  //      carries the verdict.
+
+  // 1. Elite tier
+  if (level === 90 && accuracy >= 60) {
     return {
       lede,
       response,
-      verdict: { label: "Elite call.", line: "Reality nods.", tone: "good" },
+      verdict: { label: "Bold, but working.", line: "High confidence is paying off.", tone: "elite" },
+    };
+  }
+  if (level === 80 && accuracy >= 65) {
+    return {
+      lede,
+      response,
+      verdict: { label: "Elite.", line: "Reality agrees often.", tone: "elite" },
+    };
+  }
+  if (level === 70 && accuracy >= 70) {
+    return {
+      lede,
+      response,
+      verdict: { label: "Sharp.", line: "You’re reading reality well.", tone: "elite" },
+    };
+  }
+  if (level === 60 && accuracy >= 70) {
+    return {
+      lede,
+      response,
+      verdict: { label: "Underconfident.", line: "Trust yourself more.", tone: "elite" },
     };
   }
 
-  if (gap >= 15) {
+  // 2. High-confidence danger — overrides the general "≥55 is ok" rule
+  //    because an 85% wager on a 58% hit rate is not actually "ok".
+  if (level >= 90 && accuracy < 60) {
     return {
       lede,
       response,
-      verdict: {
-        label: "Underrated.",
-        line: "Reality agrees more than you do.",
-        tone: "good",
-      },
+      verdict: { label: "Overconfident.", line: "Reality pushes back.", tone: "bad" },
     };
   }
-  if (gap >= 5) {
+  if (level >= 80 && accuracy < 60) {
     return {
       lede,
       response,
-      verdict: { label: "Sharp call.", line: "Reality nods.", tone: "good" },
+      verdict: { label: "Overconfident.", line: "Dial it back.", tone: "bad" },
     };
   }
-  if (gap > -5) {
+
+  // 3. General accuracy buckets
+  if (accuracy >= 65) {
     return {
       lede,
       response,
-      verdict: {
-        label: "Close.",
-        line: "Tight but not perfect.",
-        tone: "close",
-      },
+      verdict: { label: "Strong.", line: "Reality agrees often.", tone: "good" },
     };
   }
-  if (gap > -15) {
+  if (accuracy >= 55) {
     return {
       lede,
       response,
-      verdict: {
-        label: "Overconfident.",
-        line: "Dial it back.",
-        tone: "bad",
-      },
+      verdict: { label: "Competitive.", line: "You’re above coin-flip.", tone: "ok" },
     };
   }
-  // gap <= -15: meaningfully off
   return {
     lede,
     response,
-    verdict: {
-      label: "Overconfident.",
-      line: "Reality pushes back.",
-      tone: "bad",
-    },
+    verdict: { label: "Still learning.", line: "Reality is pushing back.", tone: "bad" },
   };
 }
 
@@ -159,16 +190,32 @@ export function calibrationVerdict(rows: CalibrationRow[]): string {
   const candidates = withData.filter((r) => r.total >= 3);
   if (candidates.length === 0) return "Calibration loading. Keep predicting.";
 
-  // Every verdict line ALWAYS spells out "confidence" AND the resolved
-  // count so the user is never left guessing what the percentage refers
-  // to or how thin the sample is.
-  const worst = [...candidates].sort((a, b) => a.gap - b.gap)[0];
-  const q = `${worst.total} resolved question${worst.total === 1 ? "" : "s"}`;
-  if (worst.gap >= -5) {
-    return "Your confidence and reality agree. Suspicious.";
+  // Lead with the best-performing bucket. Calibration gap is coaching;
+  // accuracy is the headline. Only call out the worst row when it's
+  // genuinely in trouble — high-confidence overreach (80%+ conf, <60%
+  // acc) or low accuracy regardless of confidence (<55%). Everything in
+  // between gets a neutral "you're above coin-flip" line instead of
+  // shame language.
+  const best = [...candidates].sort((a, b) => b.accuracy - a.accuracy)[0];
+  const worst = [...candidates].sort((a, b) => a.accuracy - b.accuracy)[0];
+
+  const worstIsBad =
+    worst.accuracy < 55 || (worst.level >= 80 && worst.accuracy < 60);
+
+  if (worstIsBad) {
+    const q = `${worst.total} resolved question${worst.total === 1 ? "" : "s"}`;
+    if (worst.level >= 80 && worst.accuracy < 60) {
+      return `You picked ${worst.level}% confidence on ${q}. Reality only agreed ${worst.accuracy}% of the time.`;
+    }
+    return `At ${worst.level}% confidence on ${q}, reality is pushing back — only ${worst.accuracy}% agreement.`;
   }
-  if (worst.gap <= -15) {
-    return `You picked ${worst.level}% confidence on ${q}. Reality only agreed ${worst.accuracy}% of the time.`;
+
+  if (best.accuracy >= 70) {
+    const q = `${best.total} resolved question${best.total === 1 ? "" : "s"}`;
+    return `Your ${best.level}% confidence picks land ${best.accuracy}% of the time on ${q}. Reality agrees often.`;
   }
-  return `At ${worst.level}% confidence (${q}), you trust yourself more than reality does.`;
+
+  // Middle of the road — above coin-flip across the board, nothing
+  // standing out yet either way.
+  return "You’re above coin-flip across the board. Keep stacking reps.";
 }

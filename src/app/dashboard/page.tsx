@@ -10,7 +10,11 @@ import { Journal } from "@/components/Journal";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { PendingCarousel, type PendingItem } from "@/components/PendingCarousel";
 import { startOfToday, endOfToday, startOfWeek, formatShortDate } from "@/lib/dates";
-import { dangerousConfidenceLine } from "@/lib/feedback";
+import {
+  dangerousConfidenceLabel,
+  dangerousConfidenceLine,
+  type DangerSeverity,
+} from "@/lib/feedback";
 import { computeStreak } from "@/lib/streaks";
 import { calibrationVerdict, computeCalibration } from "@/lib/calibration";
 import { buildJournal } from "@/lib/journal";
@@ -87,23 +91,57 @@ export default async function DashboardPage() {
             predictions.length,
         );
 
-  // Most dangerous confidence (most-negative net resolved score at a level)
-  const lossByLevel = new Map<number, number>();
+  // Most dangerous confidence — accuracy-based. We look at every
+  // confidence level with at least a small sample and pick the WORST
+  // performer, then classify whether it's actually dangerous or just
+  // the weakest of a strong set.
+  //
+  //   "high"  - the worst level is genuinely bad
+  //               (≥80% conf with <60% acc, OR acc <55%)
+  //   "watch" - the worst level is mediocre (acc <65 but not bad)
+  //   "none"  - every level is performing well (acc ≥65 across the board)
+  //
+  // Switched away from the prior "net negative score" calculation
+  // because score-driven ranking gave the same answer regardless of
+  // accuracy (a -90 loss looked the same as a -60 loss did at 58% vs
+  // 80% accuracy). The tile is interpretation — accuracy is the
+  // honest signal here.
+  const accByLevel = new Map<number, { total: number; correct: number }>();
   for (const p of resolved) {
-    if ((p.score ?? 0) < 0) {
-      lossByLevel.set(
-        p.confidence,
-        (lossByLevel.get(p.confidence) ?? 0) + (p.score ?? 0),
-      );
+    let row = accByLevel.get(p.confidence);
+    if (!row) {
+      row = { total: 0, correct: 0 };
+      accByLevel.set(p.confidence, row);
     }
+    row.total += 1;
+    if ((p.score ?? 0) > 0) row.correct += 1;
   }
+  // Sample-size guard: require at least 3 resolved predictions at a
+  // level before we make any "this level is dangerous" claim. Stops a
+  // single bad call from headlining the dashboard.
+  type LevelStat = { level: number; total: number; accuracy: number };
+  const levelStats: LevelStat[] = [];
+  for (const [level, { total, correct }] of accByLevel.entries()) {
+    if (total < 3) continue;
+    levelStats.push({ level, total, accuracy: (correct / total) * 100 });
+  }
+  levelStats.sort((a, b) => a.accuracy - b.accuracy);
+
   let dangerousLevel: number | null = null;
-  let worst = 0;
-  for (const [lvl, net] of lossByLevel.entries()) {
-    if (net < worst) {
-      worst = net;
-      dangerousLevel = lvl;
+  let dangerSeverity: DangerSeverity = "none";
+  const weakest = levelStats[0];
+  if (weakest) {
+    if (
+      (weakest.level >= 80 && weakest.accuracy < 60) ||
+      weakest.accuracy < 55
+    ) {
+      dangerousLevel = weakest.level;
+      dangerSeverity = "high";
+    } else if (weakest.accuracy < 65) {
+      dangerousLevel = weakest.level;
+      dangerSeverity = "watch";
     }
+    // else: every qualifying level is at ≥65% accuracy — no callout
   }
 
   const streakStats = computeStreak(
@@ -227,10 +265,10 @@ export default async function DashboardPage() {
           hint={`${predictions.length} predictions`}
         />
         <ScoreCard
-          label="Most dangerous confidence"
+          label={dangerousConfidenceLabel(dangerSeverity)}
           value={dangerousLevel == null ? "—" : `${dangerousLevel}%`}
           unit={dangerousLevel == null ? undefined : "confidence"}
-          hint={dangerousConfidenceLine(dangerousLevel)}
+          hint={dangerousConfidenceLine(dangerousLevel, dangerSeverity)}
         />
       </section>
 
