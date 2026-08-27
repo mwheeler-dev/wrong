@@ -206,7 +206,15 @@ export default async function DashboardPage() {
     <div className="wrap-wide pt-6 pb-12">
       <header className="flex items-end justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p className="label">Hello, {user.name}</p>
+          <div className="flex items-baseline gap-3">
+            <p className="label">Hello, {user.name}</p>
+            <Link
+              href="/dashboard/account"
+              className="text-[11px] font-semibold uppercase tracking-wider text-muted underline decoration-line underline-offset-4 hover:text-ink"
+            >
+              Account
+            </Link>
+          </div>
           <h1 className="display mt-1 text-[40px] leading-[0.95] sm:text-5xl">
             How wrong are you today?
           </h1>

@@ -5,6 +5,9 @@ const items: { href: string; label: string; external?: boolean }[] = [
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
   { href: "/guidelines", label: "Guidelines" },
+  // Public deletion page (no auth required) — Google Play requires this
+  // link be reachable from a public surface.
+  { href: "/delete-account", label: "Delete Account" },
   { href: `mailto:${CONTACT_EMAIL}`, label: "Contact", external: true },
 ];
 

@@ -84,17 +84,46 @@ export default function PrivacyPage() {
       <LegalSection title="Data retention" id="retention">
         <p>
           We retain your account data and predictions for as long as your
-          account is active. If you delete your account, we delete your
-          personal data and predictions within <strong>30 days</strong>, except
-          where we&apos;re required to retain limited information for legal,
-          security, or fraud-prevention reasons.
+          account is active. Deletion is <strong>immediate</strong> when you
+          use the in-app <strong>Delete account</strong> flow — the account
+          row and every cascading record (predictions, reasoning tags,
+          reflections, journal entries) are removed in a single database
+          transaction. Email-based deletion requests are completed within a
+          reasonable timeframe, typically a few business days after
+          ownership verification.
+        </p>
+        <p>
+          We may retain short-term server logs for security and
+          abuse-prevention purposes as required by our infrastructure
+          providers. These logs are not organized around user identity and
+          are rotated out under those providers&rsquo; retention policies.
         </p>
       </LegalSection>
 
       <LegalSection title="Deletion and access requests" id="deletion">
         <p>
-          You can request deletion of your account or a copy of your data at
-          any time by emailing us at{" "}
+          You can delete your account from inside the app at any time.
+          Go to{" "}
+          <a href="/dashboard/account" className="underline">
+            You → Account
+          </a>{" "}
+          and use the <strong>Delete account</strong> button under
+          Danger zone. Deletion is immediate.
+        </p>
+        <p>
+          If you can&rsquo;t sign in, request deletion by emailing{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+            {CONTACT_EMAIL}
+          </a>{" "}
+          from the address associated with your Wrong. account (so we can
+          verify ownership). The public{" "}
+          <a href="/delete-account" className="underline">
+            /delete-account
+          </a>{" "}
+          page describes both paths and exactly what is removed.
+        </p>
+        <p>
+          For a copy of your data, email us at{" "}
           <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
             {CONTACT_EMAIL}
           </a>
