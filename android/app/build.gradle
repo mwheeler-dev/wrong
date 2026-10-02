@@ -1,5 +1,26 @@
 apply plugin: 'com.android.application'
 
+// Release signing secrets are read from android/keystore.properties (gitignored)
+// or from environment variables. Never commit passwords to this file.
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+def signingValue = { String key -> keystoreProperties.getProperty(key) ?: System.getenv(key) }
+
+// Fail fast with a clear message instead of a NullPointerException in the signer.
+gradle.taskGraph.whenReady { graph ->
+    def needsReleaseSigning = graph.allTasks.any { it.project == project && it.name.toLowerCase().contains('release') }
+    if (needsReleaseSigning) {
+        def missing = ['WRONG_UPLOAD_STORE_PASSWORD', 'WRONG_UPLOAD_KEY_PASSWORD'].findAll { !signingValue(it) }
+        if (missing) {
+            throw new GradleException("Release signing is missing ${missing.join(', ')}. " +
+                "Set them in ${keystorePropertiesFile} (gitignored) or as environment variables.")
+        }
+    }
+}
+
 android {
     namespace = "com.wrongapp.mobile"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +37,17 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            storeFile file('../wrong-upload-key.jks')
+            storePassword signingValue('WRONG_UPLOAD_STORE_PASSWORD')
+            keyAlias 'wrong-upload'
+            keyPassword signingValue('WRONG_UPLOAD_KEY_PASSWORD')
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
