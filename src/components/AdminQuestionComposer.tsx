@@ -4,12 +4,15 @@ import { useCallback, useState } from "react";
 import { AdminQuestionForm, type EditingQuestion } from "./AdminQuestionForm";
 import { CATEGORIES } from "@/lib/scoring";
 import type { QuestionDraft } from "@/lib/questionGeneration";
+import type { DraftTopic } from "@/lib/questionDiversity";
 
 type ReviewDraft = {
   id: string;
   question: EditingQuestion;
   context: string;
   contextSourceUrl: string;
+  contextSourceResearched?: boolean;
+  topic: DraftTopic;
   status: "review" | "created" | "skipped";
 };
 
@@ -57,55 +60,81 @@ export function AdminQuestionComposer({
     setNotice(null);
     setGenerationProgress(0);
     const collected: ReviewDraft[] = [];
+    const previousTopics = drafts.map((draft) => draft.topic);
+    const seed = crypto.randomUUID();
     const failures: string[] = [];
     try {
       for (let offset = 0; offset < count; offset += 5) {
         const size = Math.min(5, count - offset);
-        try {
-          const res = await fetch("/api/admin/questions/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              count: size,
-              category,
-              focus,
-              excludeTexts: collected.map((draft) => draft.question.text),
-            }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            failures.push(data.error || "Could not generate this group.");
-          } else if (Array.isArray(data.drafts)) {
-            collected.push(
-              ...data.drafts.map((draft: QuestionDraft, i: number) => ({
-                id: `${Date.now()}-${offset}-${i}`,
-                question: draft,
-                context: draft.context,
-                contextSourceUrl: draft.contextSourceUrl,
-                status: "review" as const,
-              })),
-            );
-            if (collected.length) {
-              setDrafts([...collected]);
-              setIndex(0);
+        const before = collected.length;
+        // One replacement attempt per group: retain usable drafts and fill the
+        // missing slots with other stories, without an unbounded retry loop.
+        for (
+          let attempt = 0;
+          attempt < 2 && collected.length - before < size;
+          attempt++
+        ) {
+          try {
+            const res = await fetch("/api/admin/questions/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                count: size - (collected.length - before),
+                category,
+                focus,
+                totalCount: count,
+                offset,
+                seed,
+                excludeTexts: collected.map((draft) => draft.question.text),
+                excludeTopics: collected.map((draft) => draft.topic),
+                previousTopics,
+              }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              failures.push(data.error || "Could not generate this group.");
+              if ([401, 403, 429, 503].includes(res.status)) break;
+            } else if (Array.isArray(data.drafts)) {
+              collected.push(
+                ...data.drafts.map((draft: QuestionDraft, i: number) => ({
+                  id: `${Date.now()}-${offset}-${attempt}-${i}`,
+                  question: draft,
+                  context: draft.context,
+                  contextSourceUrl: draft.contextSourceUrl,
+                  contextSourceResearched: draft.contextSourceResearched,
+                  topic: {
+                    text: draft.text,
+                    category: draft.category,
+                    subjectKey: draft.subjectKey,
+                    storyKey: draft.storyKey,
+                    researchSlot: draft.researchSlot,
+                    contextSourceUrl: draft.contextSourceUrl,
+                  },
+                  status: "review" as const,
+                })),
+              );
+              if (collected.length) {
+                setDrafts([...collected]);
+                setIndex(0);
+              }
             }
+          } catch {
+            failures.push(
+              "Connection lost for one group. Other groups continued.",
+            );
           }
-        } catch {
-          failures.push(
-            "Connection lost for one group. Other groups continued.",
-          );
         }
         setGenerationProgress(offset + size);
       }
       const skipped = count - collected.length;
       if (collected.length) {
         setNotice(
-          `${collected.length} of ${count} drafts ready for review.${skipped ? ` ${skipped} skipped because they could not be generated or verified.` : ""}`,
+          `${collected.length} of ${count} drafts ready for review.${skipped ? ` ${skipped} slots could not be filled after a replacement attempt; usable drafts were kept.` : ""}`,
         );
       } else {
         setError(
           failures[0] ||
-            "No verified drafts were returned. Please try another topic or batch.",
+            "No usable drafts were returned. Please try another topic or batch.",
         );
       }
     } finally {
@@ -231,7 +260,8 @@ export function AdminQuestionComposer({
           {generating && (
             <p role="status" className="mt-2 text-sm text-muted">
               Researching and drafting… {generationProgress} of {count} checked.
-              Valid drafts are kept if another draft fails.
+              Usable drafts are kept while missing slots are retried with fresh
+              stories.
             </p>
           )}
           {notice && (
@@ -279,6 +309,11 @@ export function AdminQuestionComposer({
             </div>
             <div className="mb-3 rounded-2xl border border-accent/40 bg-accent/5 p-4 text-sm">
               <p>{current.context}</p>
+              {current.contextSourceResearched === false && (
+                <p className="mt-2 font-semibold">
+                  Background source needs review before approval.
+                </p>
+              )}
               <a
                 className="mt-2 inline-block break-all underline"
                 href={current.contextSourceUrl}

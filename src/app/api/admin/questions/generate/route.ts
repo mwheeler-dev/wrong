@@ -43,12 +43,17 @@ export async function POST(req: Request) {
       const recent = await prisma.question.findMany({
         take: 150,
         orderBy: { createdAt: "desc" },
-        select: { text: true },
+        select: { text: true, category: true },
       });
       const batch = await generateQuestions(
         options,
-        [...recent.map((q) => q.text), ...options.excludeTexts],
+        [
+          ...recent.map((q) => q.text),
+          ...options.excludeTexts,
+          ...options.previousTopics.map((q) => q.text),
+        ],
         getUserTimezone(user),
+        recent,
       );
       // Drafts only: creation still goes through the existing admin POST.
       return NextResponse.json(batch, {

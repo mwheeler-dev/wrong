@@ -108,7 +108,7 @@ test("generation accepts only integer batches from 1 through 20 and known catego
   assert.throws(() => generationOptions({ count: 1, focus: "x".repeat(501) }));
 });
 
-test("drafts require full fields, current researched sources and future answer windows", () => {
+test("drafts require usable form fields, safe source URLs and future answer windows", () => {
   assert.equal(
     validateDrafts({ questions: [draft] }, 1, now, [], sources)[0].text,
     draft.text,
@@ -117,7 +117,6 @@ test("drafts require full fields, current researched sources and future answer w
     { resolutionCriteria: "" },
     { category: "Unknown" },
     { sourceUrl: "javascript:alert(1)" },
-    { contextSourceUrl: "https://invented.example" },
     { publishDate: "2026-10-01T00:00:00Z" },
     { closesToPredictionsAt: now.toISOString() },
     { resolutionDate: "2026-10-09T00:00:00Z" },
@@ -211,7 +210,18 @@ test("OpenAI call requires live research and returns validated drafts without da
           content: [
             {
               type: "output_text",
-              text: JSON.stringify({ questions: [liveDraft] }),
+              text: JSON.stringify({
+                questions: [
+                  {
+                    ...liveDraft,
+                    category: JSON.parse(String(payload.input)).researchPlan[0]
+                      .category,
+                    researchSlot: "slot-0",
+                    subjectKey: "Fixture Team A",
+                    storyKey: "fixture-final",
+                  },
+                ],
+              }),
             },
           ],
         },
@@ -274,7 +284,7 @@ test("one invalid draft leaves nine valid drafts available, including drafts aft
     ...draft,
     text: `Question ${i}`,
   }));
-  questions[3].contextSourceUrl = "https://unverified.example/news";
+  questions[3].resolutionCriteria = "";
   const batch = validateDraftBatch({ questions }, 10, now, [], sources);
   assert.equal(batch.drafts.length, 9);
   assert.equal(batch.skipped, 1);
@@ -298,5 +308,34 @@ test("one invalid draft leaves nine valid drafts available, including drafts aft
       sources,
     ).drafts.length,
     0,
+  );
+});
+
+test("draft creation retains uncited background sources for review instead of requiring an outcome verdict", () => {
+  const batch = validateDraftBatch(
+    {
+      questions: [
+        {
+          ...draft,
+          contextSourceUrl: "https://news.example/not-in-search-metadata",
+        },
+      ],
+    },
+    1,
+    now,
+    [],
+    sources,
+  );
+  assert.equal(batch.drafts.length, 1);
+  assert.equal(batch.skipped, 0);
+  assert.equal(batch.drafts[0].contextSourceResearched, false);
+  assert.equal(
+    batch.drafts[0].contextSourceUrl,
+    "https://news.example/not-in-search-metadata",
+  );
+  assert.equal(
+    validateDrafts({ questions: [draft] }, 1, now, [], sources)[0]
+      .contextSourceResearched,
+    true,
   );
 });
