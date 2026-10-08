@@ -10,7 +10,7 @@ A daily, playful prediction game. Answer 10 binary questions, pick a confidence 
 - Tailwind CSS
 - Prisma + SQLite (local)
 - Custom email/password auth (bcryptjs + JWT in an httpOnly cookie via `jose`)
-- No external paid APIs
+- Optional OpenAI API for admin-only current-events question drafts
 - Manual admin resolution
 
 ## Setup
@@ -90,3 +90,13 @@ A daily, playful prediction game. Answer 10 binary questions, pick a confidence 
 - `npm run seed` — re-seed sample questions
 - `npm run prisma:studio` — open Prisma Studio
 - `npm run prisma:migrate` — re-run migrations
+
+## Admin question drafts and archive
+
+`/admin` offers manual entry and **Generate with AI** (1–20 drafts, optional category/topic). Set `OPENAI_API_KEY` on the existing Railway **wrong** service to enable generation. The key stays on the server. `OPENAI_QUESTION_MODEL` optionally overrides the default `gpt-5.4-mini`; the model must support Responses web search and structured outputs. API usage is billed to that OpenAI API account separately from ChatGPT. No new services, dependencies, schema changes, migrations, or Android builds are required.
+
+Generation researches current events and returns editable drafts with context sources. It does not write to the database. Review the question, official resolution source, criteria and timing; **Approve & create question** submits the existing `/api/admin/questions` POST, using the same publication and resolution behavior as manual entry. Navigate previous/next, skip, or restore skipped drafts. Unsaved edits survive carousel navigation; drafts are temporary and last until the page is reloaded. Created cards cannot be approved twice in the same review session. Manual entry works without an API key or if generation fails.
+
+Resolved questions live in `/admin/archive`, protected by the existing admin gate. Search text/criteria and filter by category, outcome and resolution deadline (UTC date boundaries). Results use server-side pagination (25 rows), compact expandable cards, and direct page jumps; existing Edit, Duplicate Card, Undo and Delete actions are preserved. The main admin queue fetches only pending questions plus a resolved count. All question/prediction records remain in the same tables, so player history and scoring continue to use their existing queries.
+
+Verification: `node --import tsx --test tests/admin-questions.test.ts`, `npx tsc --noEmit`, and `npm run build`.

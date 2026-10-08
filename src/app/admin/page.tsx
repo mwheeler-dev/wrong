@@ -1,47 +1,15 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getUserTimezone, isAdmin } from "@/lib/session";
-import { AdminQuestionForm } from "@/components/AdminQuestionForm";
+import { AdminQuestionComposer } from "@/components/AdminQuestionComposer";
+import { toAdminQuestionRow as toRowProps } from "@/lib/adminQuestions";
+import Link from "next/link";
 import { AdminQuestionList } from "@/components/AdminQuestionList";
 import { PublishBatchButton } from "@/components/PublishBatchButton";
 import { BackfillScoresButton } from "@/components/BackfillScoresButton";
 import { nextMidnight, startOfToday } from "@/lib/daily";
 
 export const dynamic = "force-dynamic";
-
-type QuestionRowInput = {
-  id: string;
-  text: string;
-  category: string;
-  status: string;
-  correctAnswer: string | null;
-  publishDate: Date;
-  resolutionDate: Date;
-  closesToPredictionsAt: Date | null;
-  resolutionCriteria: string;
-  sourceUrl: string | null;
-  _count: { predictions: number };
-};
-
-function toRowProps(q: QuestionRowInput) {
-  return {
-    id: q.id,
-    text: q.text,
-    category: q.category,
-    status: q.status,
-    correctAnswer: q.correctAnswer,
-    publishDate: q.publishDate.toISOString(),
-    resolutionDate: q.resolutionDate.toISOString(),
-    closesToPredictionsAt: q.closesToPredictionsAt
-      ? q.closesToPredictionsAt.toISOString()
-      : null,
-    // Carried through so the Edit / Redeploy modal can pre-fill without
-    // an extra fetch when the admin opens it.
-    resolutionCriteria: q.resolutionCriteria,
-    sourceUrl: q.sourceUrl,
-    predictionsCount: q._count.predictions,
-  };
-}
 
 export default async function AdminPage() {
   const user = await getCurrentUser();
@@ -63,15 +31,18 @@ export default async function AdminPage() {
   const todayStart = startOfToday(adminTz, now);
   const tomorrowMidnight = nextMidnight(adminTz, now);
 
-  const questions = await prisma.question.findMany({
-    orderBy: [{ publishDate: "desc" }, { createdAt: "desc" }],
-    include: { _count: { select: { predictions: true } } },
-  });
+  const [questions, resolvedCount] = await Promise.all([
+    prisma.question.findMany({
+      where: { status: "PENDING" },
+      orderBy: [{ publishDate: "desc" }, { createdAt: "desc" }],
+      include: { _count: { select: { predictions: true } } },
+    }),
+    prisma.question.count({ where: { status: "RESOLVED" } }),
+  ]);
 
   const pending = questions.filter((q) => q.status === "PENDING");
-  const resolved = questions.filter((q) => q.status === "RESOLVED");
 
-  function effectiveClosesAt(q: typeof pending[number]): Date {
+  function effectiveClosesAt(q: (typeof pending)[number]): Date {
     return q.closesToPredictionsAt ?? q.resolutionDate;
   }
 
@@ -124,9 +95,10 @@ export default async function AdminPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="display text-xl sm:text-2xl">New question</h2>
+        <h2 className="display text-xl sm:text-2xl">New questions</h2>
         <div className="mt-3">
-          <AdminQuestionForm
+          <AdminQuestionComposer
+            generationEnabled={!!process.env.OPENAI_API_KEY}
             initial={{
               publishDate: new Date().toISOString(),
               resolutionDate: new Date(
@@ -166,12 +138,23 @@ export default async function AdminPage() {
         rows={scheduled.map(toRowProps)}
       />
 
-      <AdminQuestionList
-        title={`Resolved (${resolved.length})`}
-        subtitle="Scored and locked."
-        emptyText="Nothing resolved yet."
-        rows={resolved.map(toRowProps)}
-      />
+      <section className="mt-10">
+        <h2 className="display text-xl sm:text-2xl">Past questions</h2>
+        <Link
+          href="/admin/archive"
+          className="card mt-3 flex items-center justify-between gap-4 hover:border-ink"
+        >
+          <div>
+            <p className="font-semibold">
+              Question archive ({resolvedCount.toLocaleString()})
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              Search resolved questions by topic, category, outcome, or date.
+            </p>
+          </div>
+          <span aria-hidden="true">→</span>
+        </Link>
+      </section>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CATEGORIES } from "@/lib/scoring";
 
-type EditingQuestion = {
+export type EditingQuestion = {
   id?: string;
   text?: string;
   category?: string;
@@ -75,9 +75,20 @@ type Props = {
   /** Fires after a successful create or edit. Lets parents close inline
    *  editing UI without subscribing to router events. */
   onSaved?: () => void;
+  onDraftChange?: (draft: EditingQuestion) => void;
+  onBusyChange?: (busy: boolean) => void;
+  submitLabel?: string;
+  disabled?: boolean;
 };
 
-export function AdminQuestionForm({ initial, onSaved }: Props) {
+export function AdminQuestionForm({
+  initial,
+  onSaved,
+  onDraftChange,
+  onBusyChange,
+  submitLabel,
+  disabled = false,
+}: Props) {
   const router = useRouter();
   const editing = !!initial?.id;
 
@@ -87,7 +98,9 @@ export function AdminQuestionForm({ initial, onSaved }: Props) {
     initial?.resolutionCriteria ?? "",
   );
   const [sourceUrl, setSourceUrl] = useState(initial?.sourceUrl ?? "");
-  const [publishDate, setPublishDate] = useState(toLocalInput(initial?.publishDate));
+  const [publishDate, setPublishDate] = useState(
+    toLocalInput(initial?.publishDate),
+  );
   const [resolutionDate, setResolutionDate] = useState(
     toLocalInput(initial?.resolutionDate),
   );
@@ -124,6 +137,34 @@ export function AdminQuestionForm({ initial, onSaved }: Props) {
     return new Date(pub.getTime() + hours * 60 * 60 * 1000);
   }, [livePreset, closesCustom, publishDate, resolutionDate]);
 
+  // Draft review uses the same fields and POST as manual entry. Preserve
+  // edits when the admin moves between carousel cards before approving.
+  useEffect(() => {
+    if (!onDraftChange) return;
+    const iso = (value: string) => {
+      const date = new Date(value);
+      return isNaN(date.getTime()) ? undefined : date.toISOString();
+    };
+    onDraftChange({
+      text,
+      category,
+      resolutionCriteria,
+      sourceUrl,
+      publishDate: iso(publishDate),
+      resolutionDate: iso(resolutionDate),
+      closesToPredictionsAt: effectiveClosesAt?.toISOString() ?? null,
+    });
+  }, [
+    text,
+    category,
+    resolutionCriteria,
+    sourceUrl,
+    publishDate,
+    resolutionDate,
+    effectiveClosesAt,
+    onDraftChange,
+  ]);
+
   // Keep the custom-mode input pre-populated if user switches into "custom"
   // mid-edit so they don't lose the computed value.
   useEffect(() => {
@@ -137,6 +178,7 @@ export function AdminQuestionForm({ initial, onSaved }: Props) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+    onBusyChange?.(true);
     try {
       const url = editing
         ? `/api/admin/questions/${initial!.id}`
@@ -177,127 +219,132 @@ export function AdminQuestionForm({ initial, onSaved }: Props) {
       setError("Network error.");
     } finally {
       setSubmitting(false);
+      onBusyChange?.(false);
     }
   }
 
   return (
     <form onSubmit={onSubmit} className="card space-y-3">
-      <div>
-        <label className="label">Question</label>
-        <textarea
-          className="input mt-1"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          required
-          rows={2}
-          placeholder="Will the S&P 500 close higher than it opened today?"
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
+      <fieldset disabled={submitting || disabled} className="space-y-3">
         <div>
-          <label className="label">Category</label>
+          <label className="label">Question</label>
+          <textarea
+            className="input mt-1"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            required
+            rows={2}
+            placeholder="Will the S&P 500 close higher than it opened today?"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Category</label>
+            <select
+              className="input mt-1"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Source URL (optional)</label>
+            <input
+              className="input mt-1"
+              value={sourceUrl ?? ""}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              type="url"
+              placeholder="https://..."
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Publish at</label>
+            <input
+              className="input mt-1"
+              type="datetime-local"
+              value={publishDate}
+              onChange={(e) => setPublishDate(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="label">Needs resolved by</label>
+            <input
+              className="input mt-1"
+              type="datetime-local"
+              value={resolutionDate}
+              onChange={(e) => setResolutionDate(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Closes to predictions</label>
           <select
             className="input mt-1"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            value={livePreset}
+            onChange={(e) => setLivePreset(e.target.value as LivePreset)}
           >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
+            {LIVE_PRESET_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="label">Source URL (optional)</label>
-          <input
-            className="input mt-1"
-            value={sourceUrl ?? ""}
-            onChange={(e) => setSourceUrl(e.target.value)}
-            type="url"
-            placeholder="https://..."
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Publish at</label>
-          <input
-            className="input mt-1"
-            type="datetime-local"
-            value={publishDate}
-            onChange={(e) => setPublishDate(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label className="label">Needs resolved by</label>
-          <input
-            className="input mt-1"
-            type="datetime-local"
-            value={resolutionDate}
-            onChange={(e) => setResolutionDate(e.target.value)}
-            required
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="label">Closes to predictions</label>
-        <select
-          className="input mt-1"
-          value={livePreset}
-          onChange={(e) => setLivePreset(e.target.value as LivePreset)}
-        >
-          {LIVE_PRESET_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        {livePreset === "custom" && (
-          <input
-            className="input mt-2"
-            type="datetime-local"
-            value={closesCustom}
-            onChange={(e) => setClosesCustom(e.target.value)}
-            required
-          />
-        )}
-        <p className="mt-1 text-xs text-muted">
-          {effectiveClosesAt ? (
-            <>
-              Answer window shuts at{" "}
-              <strong className="text-ink">
-                {effectiveClosesAt.toLocaleString()}
-              </strong>
-              .
-            </>
-          ) : (
-            "Set publish date to compute close time."
+          {livePreset === "custom" && (
+            <input
+              className="input mt-2"
+              type="datetime-local"
+              value={closesCustom}
+              onChange={(e) => setClosesCustom(e.target.value)}
+              required
+            />
           )}
-        </p>
-      </div>
+          <p className="mt-1 text-xs text-muted">
+            {effectiveClosesAt ? (
+              <>
+                Answer window shuts at{" "}
+                <strong className="text-ink">
+                  {effectiveClosesAt.toLocaleString()}
+                </strong>
+                .
+              </>
+            ) : (
+              "Set publish date to compute close time."
+            )}
+          </p>
+        </div>
 
-      <div>
-        <label className="label">Resolution criteria</label>
-        <textarea
-          className="input mt-1"
-          value={resolutionCriteria}
-          onChange={(e) => setResolutionCriteria(e.target.value)}
-          required
-          rows={2}
-          placeholder="How will this be objectively decided?"
-        />
-      </div>
+        <div>
+          <label className="label">Resolution criteria</label>
+          <textarea
+            className="input mt-1"
+            value={resolutionCriteria}
+            onChange={(e) => setResolutionCriteria(e.target.value)}
+            required
+            rows={2}
+            placeholder="How will this be objectively decided?"
+          />
+        </div>
 
-      {error && <p className="text-sm text-bad">{error}</p>}
+        {error && <p className="text-sm text-bad">{error}</p>}
 
-      <div className="flex justify-end">
-        <button disabled={submitting} className="btn-primary">
-          {submitting ? "Saving..." : editing ? "Save changes" : "Create question"}
-        </button>
-      </div>
+        <div className="flex justify-end">
+          <button disabled={submitting} className="btn-primary">
+            {submitting
+              ? "Saving..."
+              : (submitLabel ?? (editing ? "Save changes" : "Create question"))}
+          </button>
+        </div>
+      </fieldset>
     </form>
   );
 }
