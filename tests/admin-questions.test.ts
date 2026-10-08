@@ -7,6 +7,21 @@ import {
   GenerationError,
 } from "../src/lib/questionGeneration";
 import { archiveFilters, ARCHIVE_PAGE_SIZE } from "../src/lib/questionArchive";
+import { hasSameOrigin } from "../src/lib/requestOrigin";
+
+test("admin generation accepts Railway's external origin and rejects other sites", () => {
+  const request = (headers: Record<string, string>, url = "http://0.0.0.0:8080/api/admin/questions/generate") =>
+    new Request(url, { headers });
+  assert.equal(hasSameOrigin(request({ origin: "https://www.wrong-app.com", host: "www.wrong-app.com" })), true);
+  assert.equal(hasSameOrigin(request({ origin: "https://www.wrong-app.com", host: "0.0.0.0:8080", "x-forwarded-host": "www.wrong-app.com", "x-forwarded-proto": "https" })), true);
+  assert.equal(hasSameOrigin(request({ origin: "https://other.example", host: "www.wrong-app.com" })), false);
+  assert.equal(hasSameOrigin(request({ origin: "https://www.wrong-app.com.evil.example", "x-forwarded-host": "www.wrong-app.com" })), false);
+  assert.equal(hasSameOrigin(request({ origin: "null", host: "www.wrong-app.com" })), false);
+  assert.equal(hasSameOrigin(request({ origin: "https://www.wrong-app.com/path", host: "www.wrong-app.com" })), false);
+  assert.equal(hasSameOrigin(request({ origin: "http://localhost:3000" }, "http://localhost:3000/api/admin/questions/generate")), true);
+  assert.equal(hasSameOrigin(request({ origin: "http://localhost:3001" }, "http://localhost:3000/api/admin/questions/generate")), false);
+  assert.equal(hasSameOrigin(request({})), true);
+});
 
 const now = new Date("2026-10-08T15:00:00Z");
 const draft = {

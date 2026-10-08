@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { getUserTimezone } from "@/lib/session";
+import { hasSameOrigin } from "@/lib/requestOrigin";
 import {
   generateQuestions,
   generationOptions,
@@ -19,8 +20,7 @@ let lastStarted = 0;
 export async function POST(req: Request) {
   const { user, response } = await requireAdmin();
   if (response) return response;
-  const origin = req.headers.get("origin");
-  if (origin && origin !== new URL(req.url).origin) {
+  if (!hasSameOrigin(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   try {
