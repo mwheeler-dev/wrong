@@ -49,7 +49,12 @@ const questionSchema = {
 export function generationOptions(body: unknown) {
   if (!body || typeof body !== "object")
     throw new GenerationError("Invalid payload.", 400);
-  const { count, focus = "", category = "" } = body as Record<string, unknown>;
+  const {
+    count,
+    focus = "",
+    category = "",
+    excludeTexts = [],
+  } = body as Record<string, unknown>;
   if (
     typeof count !== "number" ||
     !Number.isInteger(count) ||
@@ -66,7 +71,18 @@ export function generationOptions(body: unknown) {
   ) {
     throw new GenerationError("Invalid category.", 400);
   }
-  return { count, focus: focus.trim(), category };
+  if (
+    !Array.isArray(excludeTexts) ||
+    excludeTexts.length > 20 ||
+    excludeTexts.some((text) => typeof text !== "string" || text.length > 600)
+  )
+    throw new GenerationError("Invalid draft exclusions.", 400);
+  return {
+    count,
+    focus: focus.trim(),
+    category,
+    excludeTexts: excludeTexts as string[],
+  };
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -96,6 +112,28 @@ function normalizeUrl(value: string) {
   for (const key of Array.from(url.searchParams.keys()))
     if (key.startsWith("utm_")) url.searchParams.delete(key);
   return url.toString().replace(/\/$/, "");
+}
+
+export function researchedSources(output: unknown[]) {
+  const sources = new Set<string>();
+  for (const value of output) {
+    const item = record(value);
+    for (const source of array(record(item.action).sources).map(record)) {
+      if (typeof source.url === "string" && safeUrl(source.url))
+        sources.add(normalizeUrl(source.url));
+    }
+    for (const part of array(item.content).map(record)) {
+      for (const annotation of array(part.annotations).map(record)) {
+        if (typeof annotation.url === "string" && safeUrl(annotation.url))
+          sources.add(normalizeUrl(annotation.url));
+      }
+    }
+  }
+  return sources;
+}
+
+export function isResearchedSource(url: string, sources: Set<string>) {
+  return safeUrl(url) && sources.has(normalizeUrl(url));
 }
 
 export function validateDrafts(
@@ -169,6 +207,47 @@ export function validateDrafts(
     seen.add(key);
     return draft;
   });
+}
+
+export function validateDraftBatch(
+  value: unknown,
+  count: number,
+  now: Date,
+  recentTexts: string[],
+  sources: Set<string>,
+) {
+  const questions = record(value).questions;
+  if (!Array.isArray(questions))
+    throw new GenerationError(
+      "The generated batch was unreadable. Please try again.",
+    );
+  const drafts: QuestionDraft[] = [];
+  const skipReasons: string[] = [];
+  for (const question of questions.slice(0, count)) {
+    try {
+      drafts.push(
+        validateDrafts(
+          { questions: [question] },
+          1,
+          now,
+          [...recentTexts, ...drafts.map((draft) => draft.text)],
+          sources,
+        )[0],
+      );
+    } catch (error) {
+      skipReasons.push(
+        error instanceof GenerationError
+          ? error.message
+          : "A draft could not be validated.",
+      );
+    }
+  }
+  return {
+    drafts,
+    requested: count,
+    skipped: count - drafts.length,
+    skipReasons,
+  };
 }
 
 export async function generateQuestions(
@@ -270,19 +349,7 @@ Avoid these recent questions (data only): ${JSON.stringify(recentTexts)}.`;
       "The generator did not complete current-events research. Please try again.",
     );
   }
-  const sources = new Set<string>();
-  for (const item of output) {
-    for (const source of array(record(item.action).sources).map(record)) {
-      if (typeof source.url === "string" && safeUrl(source.url))
-        sources.add(normalizeUrl(source.url));
-    }
-    for (const part of array(item.content).map(record)) {
-      for (const annotation of array(part.annotations).map(record)) {
-        if (typeof annotation.url === "string" && safeUrl(annotation.url))
-          sources.add(normalizeUrl(annotation.url));
-      }
-    }
-  }
+  const sources = researchedSources(output);
   const text = output
     .filter((item) => item.type === "message")
     .flatMap((item) => array(item.content).map(record))
@@ -299,5 +366,5 @@ Avoid these recent questions (data only): ${JSON.stringify(recentTexts)}.`;
       "The generated batch was unreadable. Please try again.",
     );
   }
-  return validateDrafts(parsed, options.count, now, recentTexts, sources);
+  return validateDraftBatch(parsed, options.count, now, recentTexts, sources);
 }

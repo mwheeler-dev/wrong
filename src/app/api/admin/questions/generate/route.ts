@@ -15,7 +15,6 @@ export const maxDuration = 200;
 // One admin, one Railway replica: prevent double-clicks and parallel tabs
 // from running overlapping paid batches. No new persistence infrastructure.
 let running = false;
-let lastStarted = 0;
 
 export async function POST(req: Request) {
   const { user, response } = await requireAdmin();
@@ -31,33 +30,30 @@ export async function POST(req: Request) {
         503,
       );
     }
-    if (running || Date.now() - lastStarted < 15_000) {
+    if (running) {
       return NextResponse.json(
         {
-          error:
-            "A batch is already generating, or just finished. Please wait a moment.",
+          error: "A batch is already generating. Please wait a moment.",
         },
         { status: 429 },
       );
     }
     running = true;
-    lastStarted = Date.now();
     try {
       const recent = await prisma.question.findMany({
         take: 150,
         orderBy: { createdAt: "desc" },
         select: { text: true },
       });
-      const drafts = await generateQuestions(
+      const batch = await generateQuestions(
         options,
-        recent.map((q) => q.text),
+        [...recent.map((q) => q.text), ...options.excludeTexts],
         getUserTimezone(user),
       );
       // Drafts only: creation still goes through the existing admin POST.
-      return NextResponse.json(
-        { drafts },
-        { headers: { "Cache-Control": "no-store" } },
-      );
+      return NextResponse.json(batch, {
+        headers: { "Cache-Control": "no-store" },
+      });
     } finally {
       running = false;
     }

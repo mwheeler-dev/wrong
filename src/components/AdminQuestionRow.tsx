@@ -4,6 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AdminQuestionForm } from "./AdminQuestionForm";
 import { AdminQuestionRedeployForm } from "./AdminQuestionRedeployForm";
+import { AdminAICheckResult } from "./AdminAICheckResult";
+import {
+  requestQuestionCheck,
+  approveQuestionCheck,
+} from "@/lib/adminAIClient";
+import type { VerificationResult } from "@/lib/questionVerification";
 
 type Question = {
   id: string;
@@ -26,6 +32,57 @@ export function AdminQuestionRow({ q }: { q: Question }) {
   const [mode, setMode] = useState<Mode>("view");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checked, setChecked] = useState<{
+    key: string;
+    result: VerificationResult;
+  } | null>(null);
+  const questionKey = JSON.stringify([
+    q.text,
+    q.resolutionCriteria,
+    q.sourceUrl,
+    q.publishDate,
+    q.closesToPredictionsAt,
+    q.resolutionDate,
+  ]);
+  const aiResult = checked?.key === questionKey ? checked.result : null;
+
+  async function checkWithAI() {
+    setChecking(true);
+    setBusy(true);
+    setError(null);
+    setChecked(null);
+    try {
+      setChecked({
+        key: questionKey,
+        result: await requestQuestionCheck(q.id),
+      });
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Could not check this question.",
+      );
+    } finally {
+      setChecking(false);
+      setBusy(false);
+    }
+  }
+
+  async function approveAI() {
+    if (!aiResult?.answer) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await approveQuestionCheck(q.id, aiResult);
+      setChecked(null);
+      router.refresh();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not resolve.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function resolve(answer: "YES" | "NO") {
     if (q.status === "RESOLVED" && q.correctAnswer === answer) return;
@@ -73,11 +130,18 @@ export function AdminQuestionRow({ q }: { q: Question }) {
   }
 
   async function remove() {
-    if (!confirm("Delete this question? This will also delete all related predictions.")) return;
+    if (
+      !confirm(
+        "Delete this question? This will also delete all related predictions.",
+      )
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/questions/${q.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/questions/${q.id}`, {
+        method: "DELETE",
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error || "Could not delete.");
@@ -99,7 +163,8 @@ export function AdminQuestionRow({ q }: { q: Question }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="pill">{q.category}</span>
         <span className="text-xs text-muted">
-          {q.predictionsCount} prediction{q.predictionsCount === 1 ? "" : "s"} · {q.status}
+          {q.predictionsCount} prediction{q.predictionsCount === 1 ? "" : "s"} ·{" "}
+          {q.status}
           {q.correctAnswer && ` · ${q.correctAnswer}`}
         </span>
       </div>
@@ -107,21 +172,48 @@ export function AdminQuestionRow({ q }: { q: Question }) {
       <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs text-muted sm:grid-cols-[auto_1fr]">
         <dt className="font-semibold uppercase tracking-wider">Publish</dt>
         <dd>{new Date(q.publishDate).toLocaleString()}</dd>
-        <dt className="font-semibold uppercase tracking-wider">Closes to predictions</dt>
+        <dt className="font-semibold uppercase tracking-wider">
+          Closes to predictions
+        </dt>
         <dd>
           {q.closesToPredictionsAt
             ? new Date(q.closesToPredictionsAt).toLocaleString()
             : `(falls back to resolve date)`}
         </dd>
-        <dt className="font-semibold uppercase tracking-wider">Needs resolved</dt>
+        <dt className="font-semibold uppercase tracking-wider">
+          Needs resolved
+        </dt>
         <dd>{new Date(q.resolutionDate).toLocaleString()}</dd>
       </dl>
 
       {error && <p className="mt-2 text-sm text-bad">{error}</p>}
+      {!isResolved && aiResult && (
+        <>
+          <AdminAICheckResult result={aiResult} />
+          {aiResult.answer && (
+            <button
+              type="button"
+              disabled={busy}
+              className="btn-accent mt-2"
+              onClick={approveAI}
+            >
+              Approve & resolve {aiResult.answer}
+            </button>
+          )}
+        </>
+      )}
 
       <div className="mt-3 flex flex-wrap gap-2">
         {!isResolved && (
           <>
+            <button
+              type="button"
+              disabled={busy}
+              className="btn-accent"
+              onClick={checkWithAI}
+            >
+              {checking ? "Checking with AI…" : "Check with AI"}
+            </button>
             <button
               disabled={busy}
               className={`btn ${q.correctAnswer === "YES" ? "bg-ink text-paper" : "border border-ink text-ink"}`}
@@ -176,10 +268,10 @@ export function AdminQuestionRow({ q }: { q: Question }) {
         <div className="mt-3 rounded-2xl border border-line bg-paper/40 p-3 sm:p-4">
           <p className="label">Edit this card</p>
           <p className="mt-1 mb-3 text-xs text-muted">
-            Edits the existing card in place. Same id, same predictions.
-            Date changes can move it between Overdue / Live / Scheduled.
-            Users who already answered won&rsquo;t see it again — use
-            Duplicate Card for that.
+            Edits the existing card in place. Same id, same predictions. Date
+            changes can move it between Overdue / Live / Scheduled. Users who
+            already answered won&rsquo;t see it again — use Duplicate Card for
+            that.
           </p>
           <AdminQuestionForm
             initial={{
@@ -201,10 +293,10 @@ export function AdminQuestionRow({ q }: { q: Question }) {
         <div className="mt-3 rounded-2xl border border-accent/40 bg-accent/5 p-3 sm:p-4">
           <p className="label text-ink">Duplicate this card</p>
           <p className="mt-1 mb-3 text-xs text-muted">
-            Creates a brand-new pending question with a new id. The
-            original card and all its predictions stay untouched. Anyone
-            who answered the original can answer this duplicate because
-            it&rsquo;s a different id.
+            Creates a brand-new pending question with a new id. The original
+            card and all its predictions stay untouched. Anyone who answered the
+            original can answer this duplicate because it&rsquo;s a different
+            id.
           </p>
           <AdminQuestionRedeployForm
             sourceId={q.id}

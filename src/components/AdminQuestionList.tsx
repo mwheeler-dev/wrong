@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AdminQuestionRow } from "./AdminQuestionRow";
+import { AdminBulkAICheck } from "./AdminBulkAICheck";
 
 type Row = {
   id: string;
@@ -26,6 +27,7 @@ type Props = {
   emphasize?: boolean;
   /** Items per page. Default 8 — fits on a phone without dump-scrolling. */
   pageSize?: number;
+  bulkCheck?: boolean;
 };
 
 /**
@@ -40,6 +42,7 @@ export function AdminQuestionList({
   rows,
   emphasize = false,
   pageSize = 8,
+  bulkCheck = false,
 }: Props) {
   const [page, setPage] = useState(0);
 
@@ -59,16 +62,12 @@ export function AdminQuestionList({
 
   return (
     <section className="mt-10">
-      <div
-        className={
-          emphasize
-            ? "border-l-2 border-accent pl-3"
-            : ""
-        }
-      >
+      <div className={emphasize ? "border-l-2 border-accent pl-3" : ""}>
         <h2 className="display text-xl sm:text-2xl">{title}</h2>
         {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
       </div>
+
+      {bulkCheck && rows.length > 0 && <AdminBulkAICheck rows={rows} />}
 
       <div className="mt-3 space-y-2">
         {rows.length === 0 ? (

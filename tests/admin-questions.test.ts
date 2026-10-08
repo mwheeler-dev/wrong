@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   generationOptions,
   validateDrafts,
+  validateDraftBatch,
   generateQuestions,
   GenerationError,
 } from "../src/lib/questionGeneration";
@@ -10,16 +11,76 @@ import { archiveFilters, ARCHIVE_PAGE_SIZE } from "../src/lib/questionArchive";
 import { hasSameOrigin } from "../src/lib/requestOrigin";
 
 test("admin generation accepts Railway's external origin and rejects other sites", () => {
-  const request = (headers: Record<string, string>, url = "http://0.0.0.0:8080/api/admin/questions/generate") =>
-    new Request(url, { headers });
-  assert.equal(hasSameOrigin(request({ origin: "https://www.wrong-app.com", host: "www.wrong-app.com" })), true);
-  assert.equal(hasSameOrigin(request({ origin: "https://www.wrong-app.com", host: "0.0.0.0:8080", "x-forwarded-host": "www.wrong-app.com", "x-forwarded-proto": "https" })), true);
-  assert.equal(hasSameOrigin(request({ origin: "https://other.example", host: "www.wrong-app.com" })), false);
-  assert.equal(hasSameOrigin(request({ origin: "https://www.wrong-app.com.evil.example", "x-forwarded-host": "www.wrong-app.com" })), false);
-  assert.equal(hasSameOrigin(request({ origin: "null", host: "www.wrong-app.com" })), false);
-  assert.equal(hasSameOrigin(request({ origin: "https://www.wrong-app.com/path", host: "www.wrong-app.com" })), false);
-  assert.equal(hasSameOrigin(request({ origin: "http://localhost:3000" }, "http://localhost:3000/api/admin/questions/generate")), true);
-  assert.equal(hasSameOrigin(request({ origin: "http://localhost:3001" }, "http://localhost:3000/api/admin/questions/generate")), false);
+  const request = (
+    headers: Record<string, string>,
+    url = "http://0.0.0.0:8080/api/admin/questions/generate",
+  ) => new Request(url, { headers });
+  assert.equal(
+    hasSameOrigin(
+      request({
+        origin: "https://www.wrong-app.com",
+        host: "www.wrong-app.com",
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    hasSameOrigin(
+      request({
+        origin: "https://www.wrong-app.com",
+        host: "0.0.0.0:8080",
+        "x-forwarded-host": "www.wrong-app.com",
+        "x-forwarded-proto": "https",
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    hasSameOrigin(
+      request({ origin: "https://other.example", host: "www.wrong-app.com" }),
+    ),
+    false,
+  );
+  assert.equal(
+    hasSameOrigin(
+      request({
+        origin: "https://www.wrong-app.com.evil.example",
+        "x-forwarded-host": "www.wrong-app.com",
+      }),
+    ),
+    false,
+  );
+  assert.equal(
+    hasSameOrigin(request({ origin: "null", host: "www.wrong-app.com" })),
+    false,
+  );
+  assert.equal(
+    hasSameOrigin(
+      request({
+        origin: "https://www.wrong-app.com/path",
+        host: "www.wrong-app.com",
+      }),
+    ),
+    false,
+  );
+  assert.equal(
+    hasSameOrigin(
+      request(
+        { origin: "http://localhost:3000" },
+        "http://localhost:3000/api/admin/questions/generate",
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    hasSameOrigin(
+      request(
+        { origin: "http://localhost:3001" },
+        "http://localhost:3000/api/admin/questions/generate",
+      ),
+    ),
+    false,
+  );
   assert.equal(hasSameOrigin(request({})), true);
 });
 
@@ -163,7 +224,8 @@ test("OpenAI call requires live research and returns validated drafts without da
       [],
       "America/New_York",
     );
-    assert.equal(result.length, 1);
+    assert.equal(result.drafts.length, 1);
+    assert.equal(result.skipped, 0);
     assert.equal(payload!.store, false);
     assert.equal(payload!.tool_choice, "required");
     assert.deepEqual(payload!.tools, [{ type: "web_search" }]);
@@ -205,4 +267,36 @@ test("OpenAI call requires live research and returns validated drafts without da
     if (originalKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = originalKey;
   }
+});
+
+test("one invalid draft leaves nine valid drafts available, including drafts after the failure", () => {
+  const questions = Array.from({ length: 10 }, (_, i) => ({
+    ...draft,
+    text: `Question ${i}`,
+  }));
+  questions[3].contextSourceUrl = "https://unverified.example/news";
+  const batch = validateDraftBatch({ questions }, 10, now, [], sources);
+  assert.equal(batch.drafts.length, 9);
+  assert.equal(batch.skipped, 1);
+  assert.equal(batch.drafts[8].text, "Question 9");
+  assert.equal(batch.skipReasons.length, 1);
+  const duplicates = validateDraftBatch(
+    { questions: [draft, draft, { ...draft, text: "Another question" }] },
+    5,
+    now,
+    [],
+    sources,
+  );
+  assert.equal(duplicates.drafts.length, 2);
+  assert.equal(duplicates.skipped, 3);
+  assert.equal(
+    validateDraftBatch(
+      { questions: [{ ...draft, resolutionCriteria: "" }] },
+      1,
+      now,
+      [],
+      sources,
+    ).drafts.length,
+    0,
+  );
 });

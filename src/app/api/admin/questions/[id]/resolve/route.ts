@@ -27,12 +27,34 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
   const body = await req.json().catch(() => null);
   const correctAnswer = String(body?.correctAnswer ?? "") as Answer;
   if (correctAnswer !== "YES" && correctAnswer !== "NO") {
-    return NextResponse.json({ error: "correctAnswer must be YES or NO" }, { status: 400 });
+    return NextResponse.json(
+      { error: "correctAnswer must be YES or NO" },
+      { status: 400 },
+    );
   }
 
   const { id } = ctx.params;
-  const question = await prisma.question.findUnique({ where: { id }, select: { id: true } });
-  if (!question) return NextResponse.json({ error: "Question not found" }, { status: 404 });
+  const question = await prisma.question.findUnique({
+    where: { id },
+    select: { id: true, updatedAt: true, status: true },
+  });
+  if (!question)
+    return NextResponse.json({ error: "Question not found" }, { status: 404 });
+  // AI recommendations carry the version researched. Manual resolution is
+  // unchanged; stale recommendations require a fresh check before approval.
+  if (
+    body?.expectedUpdatedAt !== undefined &&
+    (body.expectedUpdatedAt !== question.updatedAt.toISOString() ||
+      question.status !== "PENDING")
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "This question changed since the AI check. Check it again before approving.",
+      },
+      { status: 409 },
+    );
+  }
 
   const wrongAnswer: Answer = correctAnswer === "YES" ? "NO" : "YES";
 

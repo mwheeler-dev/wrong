@@ -115,6 +115,7 @@ export default async function AdminPage() {
         emphasize={overdue.length > 0}
         emptyText="Nothing overdue. Reality is on time."
         rows={overdue.map(toRowProps)}
+        bulkCheck
       />
 
       <AdminQuestionList
@@ -122,6 +123,7 @@ export default async function AdminPage() {
         subtitle="Scheduled to be resolved today, in your local timezone."
         emptyText="Nothing scheduled to resolve today."
         rows={needsResolvedToday.map(toRowProps)}
+        bulkCheck
       />
 
       <AdminQuestionList

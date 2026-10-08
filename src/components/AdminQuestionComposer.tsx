@@ -29,6 +29,8 @@ export function AdminQuestionComposer({
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
   const current = drafts[index];
   const currentId = current?.id;
   const preserveDraft = useCallback(
@@ -52,33 +54,60 @@ export function AdminQuestionComposer({
       return;
     setGenerating(true);
     setError(null);
+    setNotice(null);
+    setGenerationProgress(0);
+    const collected: ReviewDraft[] = [];
+    const failures: string[] = [];
     try {
-      const res = await fetch("/api/admin/questions/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count, category, focus }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error || "Could not generate questions.");
-        return;
+      for (let offset = 0; offset < count; offset += 5) {
+        const size = Math.min(5, count - offset);
+        try {
+          const res = await fetch("/api/admin/questions/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              count: size,
+              category,
+              focus,
+              excludeTexts: collected.map((draft) => draft.question.text),
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            failures.push(data.error || "Could not generate this group.");
+          } else if (Array.isArray(data.drafts)) {
+            collected.push(
+              ...data.drafts.map((draft: QuestionDraft, i: number) => ({
+                id: `${Date.now()}-${offset}-${i}`,
+                question: draft,
+                context: draft.context,
+                contextSourceUrl: draft.contextSourceUrl,
+                status: "review" as const,
+              })),
+            );
+            if (collected.length) {
+              setDrafts([...collected]);
+              setIndex(0);
+            }
+          }
+        } catch {
+          failures.push(
+            "Connection lost for one group. Other groups continued.",
+          );
+        }
+        setGenerationProgress(offset + size);
       }
-      if (!Array.isArray(data.drafts) || !data.drafts.length) {
-        setError("No drafts were returned. Please try again.");
-        return;
+      const skipped = count - collected.length;
+      if (collected.length) {
+        setNotice(
+          `${collected.length} of ${count} drafts ready for review.${skipped ? ` ${skipped} skipped because they could not be generated or verified.` : ""}`,
+        );
+      } else {
+        setError(
+          failures[0] ||
+            "No verified drafts were returned. Please try another topic or batch.",
+        );
       }
-      setDrafts(
-        data.drafts.map((draft: QuestionDraft, i: number) => ({
-          id: `${Date.now()}-${i}`,
-          question: draft,
-          context: draft.context,
-          contextSourceUrl: draft.contextSourceUrl,
-          status: "review",
-        })),
-      );
-      setIndex(0);
-    } catch {
-      setError("Connection lost. No drafts were loaded. Please try again.");
     } finally {
       setGenerating(false);
     }
@@ -201,7 +230,13 @@ export function AdminQuestionComposer({
           </fieldset>
           {generating && (
             <p role="status" className="mt-2 text-sm text-muted">
-              Researching and drafting. A larger batch can take a few minutes.
+              Researching and drafting… {generationProgress} of {count} checked.
+              Valid drafts are kept if another draft fails.
+            </p>
+          )}
+          {notice && (
+            <p role="status" className="mt-3 text-sm">
+              {notice}
             </p>
           )}
           {error && (
