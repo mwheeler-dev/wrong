@@ -106,3 +106,7 @@ Pending question cards offer **Check with AI**. Checks research the saved resolu
 Resolved questions live in `/admin/archive`, protected by the existing admin gate. Search text/criteria and filter by category, outcome and resolution deadline (UTC date boundaries). Results use server-side pagination (25 rows), compact expandable cards, and direct page jumps; existing Edit, Duplicate Card, Undo and Delete actions are preserved. The main admin queue fetches only pending questions plus a resolved count. All question/prediction records remain in the same tables, so player history and scoring continue to use their existing queries.
 
 Verification: `node --import tsx --test tests/admin-questions.test.ts tests/admin-ai-checks.test.ts tests/question-diversity.test.ts`, `npx tsc --noEmit`, and `npm run build`.
+
+## Visible question timers
+
+Play retains its 30-second limit, no-retry flow, daily cap and post-answer reasoning. A hidden tab keeps the viewed card's absolute deadline, but does not start timers for unseen cards. The signed answer window is prepared when each card is presented, so time spent away or on the previous reasoning screen does not expire a future card. Old expired cache entries from the background-cascade client are discarded once; active old deadlines are preserved, and expiry of a card presented by the repaired client stays expired on reload. No predictions or scores are changed by cache repair.

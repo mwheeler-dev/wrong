@@ -34,7 +34,7 @@ test("mixed runs cover all eight categories with balanced counts across five-que
     full
       .slice(0, 5)
       .every(
-        (slot) => !["Sports", "Politics", "Science"].includes(slot.category),
+        (slot) => !["Sports", "Politics", "Science"].includes(slot.category!),
       ),
   );
   assert.deepEqual(
@@ -47,7 +47,7 @@ test("mixed runs cover all eight categories with balanced counts across five-que
       history,
       full.slice(0, 5).map((slot) => ({
         text: "Fixture",
-        category: slot.category,
+        category: slot.category!,
         researchSlot: slot.id,
       })),
     ),

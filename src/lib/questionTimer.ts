@@ -5,7 +5,7 @@
 // closes.
 //
 // Storage shape: a single deadline timestamp (UTC ms) per question id.
-//   key   = "wrong:questionTimer:<questionId>"
+//   key   = "wrong:questionTimer:visible:<questionId>"
 //   value = "<ms-since-epoch>"
 //
 // We deliberately store the DEADLINE rather than the start time. Reading
@@ -14,6 +14,7 @@
 // throttled setInterval to a crawl.
 
 const PREFIX = "wrong:questionTimer:";
+const VISIBLE_PREFIX = `${PREFIX}visible:`;
 
 function isClient(): boolean {
   return typeof window !== "undefined" && typeof sessionStorage !== "undefined";
@@ -22,10 +23,21 @@ function isClient(): boolean {
 export function getStoredDeadline(questionId: string): number | null {
   if (!isClient()) return null;
   try {
-    const raw = sessionStorage.getItem(PREFIX + questionId);
-    if (!raw) return null;
-    const n = parseInt(raw, 10);
-    return Number.isFinite(n) ? n : null;
+    const raw = sessionStorage.getItem(VISIBLE_PREFIX + questionId);
+    if (raw) {
+      const deadline = Number(raw);
+      return Number.isFinite(deadline) ? deadline : null;
+    }
+    // Old clients started timers for cards never shown in a background tab.
+    // Preserve an active legacy deadline, but don't import expired deadlines
+    // whose presentation history cannot be established. New-format expiry is
+    // always retained, including on reload: this is a one-time cache repair.
+    const legacy = sessionStorage.getItem(PREFIX + questionId);
+    const deadline = legacy ? Number(legacy) : NaN;
+    if (!Number.isFinite(deadline) || deadline <= Date.now()) return null;
+    sessionStorage.setItem(VISIBLE_PREFIX + questionId, String(deadline));
+    sessionStorage.removeItem(PREFIX + questionId);
+    return deadline;
   } catch {
     return null;
   }
@@ -34,7 +46,8 @@ export function getStoredDeadline(questionId: string): number | null {
 export function setStoredDeadline(questionId: string, deadline: number): void {
   if (!isClient()) return;
   try {
-    sessionStorage.setItem(PREFIX + questionId, String(deadline));
+    sessionStorage.setItem(VISIBLE_PREFIX + questionId, String(deadline));
+    sessionStorage.removeItem(PREFIX + questionId);
   } catch {
     // sessionStorage can throw in some private modes — caller treats as best-effort
   }
@@ -44,6 +57,7 @@ export function clearStoredDeadline(questionId: string): void {
   if (!isClient()) return;
   try {
     sessionStorage.removeItem(PREFIX + questionId);
+    sessionStorage.removeItem(VISIBLE_PREFIX + questionId);
   } catch {}
 }
 

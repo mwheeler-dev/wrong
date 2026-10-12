@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { QuestionCard, type QuestionForPlay } from "./QuestionCard";
 import { ConfidenceSelector } from "./ConfidenceSelector";
 import { Timer } from "./Timer";
@@ -72,9 +72,19 @@ export function PlayClient({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SubmitResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [visible, setVisible] = useState(true);
 
-  const [roundToken, setRoundToken] = useState<string | null>(null);
-  const tokenRequestedRef = useRef(false);
+  useEffect(() => {
+    const update = () => setVisible(!document.hidden);
+    update();
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
+
+  const [preparedRound, setPreparedRound] = useState<{
+    questionId: string;
+    token: string;
+  } | null>(null);
 
   const [reflection, setReflection] = useState("");
   const [reflectionSaved, setReflectionSaved] = useState(false);
@@ -120,6 +130,9 @@ export function PlayClient({
     [questions, passedIds],
   );
   const current = remaining[0] ?? null;
+  const roundToken = preparedRound?.questionId === current?.id
+    ? preparedRound?.token ?? null
+    : null;
 
   // ── DAILY-CAP-AWARE PROGRESS ──────────────────────────────────────────
   // SERVER-AUTHORITATIVE today count. Seeded from the prop on mount, then
@@ -131,36 +144,41 @@ export function PlayClient({
   const progressPct = dailyCap === 0 ? 0 : Math.min(100, (totalToday / dailyCap) * 100);
   const allDoneToday = totalToday >= dailyCap;
 
-  // Mint the round token once at mount, signed for the unanswered subset.
-  // First question gets a fresh 30s deadline because the token's iat is "now".
+  // Prepare only the current visible card. Background expiry and time spent
+  // saving reasoning must not consume unseen cards' signed answer windows.
   useEffect(() => {
-    if (tokenRequestedRef.current) return;
-    tokenRequestedRef.current = true;
-
-    const initialRemaining = questions.filter(
-      (q) => !initialAnsweredIds.includes(q.id),
-    );
-    if (initialRemaining.length === 0) return;
-
-    (async () => {
+    const id = current?.id;
+    if (!id || result) return;
+    let cancelled = false;
+    let requested = false;
+    async function prepare() {
+      if (document.hidden || requested || cancelled) return;
+      requested = true;
       try {
         const res = await fetch("/api/play/round", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            questionIds: initialRemaining.map((q) => q.id),
+            questionIds: [id],
           }),
         });
         const data = await res.json();
-        if (res.ok && data.roundToken) {
-          setRoundToken(data.roundToken);
-        }
+        if (cancelled) return;
+        if (document.hidden) { requested = false; return; }
+        if (res.ok && data.roundToken)
+          setPreparedRound({ questionId: id!, token: data.roundToken });
+        else setError(data.error || "Could not prepare this question.");
       } catch {
-        // surfaces as "missing round token" on submit
+        if (!cancelled) setError("Could not connect to prepare this question.");
       }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    }
+    void prepare();
+    document.addEventListener("visibilitychange", prepare);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", prepare);
+    };
+  }, [current?.id, result]);
 
   // ── COMPLETION SCREENS ────────────────────────────────────────────────
   // Done for the day → DoneScreen with reflection prompt + countdown.
@@ -375,9 +393,10 @@ export function PlayClient({
         />
       </div>
 
-      {!result && current && (
+      {!result && current && roundToken && visible && (
         <div className="mt-3 sm:mt-4">
           <Timer
+            key={current.id}
             seconds={30}
             questionId={current.id}
             onExpire={handleTimerExpire}
