@@ -17,16 +17,16 @@ export type ResearchSlot = {
 
 const lanes: Record<Category, string[]> = {
   Entertainment: [
-    "Music releases, charts, tours, live performances and music awards",
-    "Film releases, box-office milestones, festivals and streaming television",
-    "Gaming, esports, comedy and live entertainment events",
-    "Television competitions, international entertainment and creator projects",
+    "Music releases, tours and chart races across different artists, genres and countries; research beyond the most-covered pop star",
+    "Upcoming films, box-office races and TV shows that viewers are following",
+    "New games, esports matches, comedy and live shows with an audience waiting for the outcome",
+    "TV competitions, international music scenes and creator projects with clear public interest",
   ],
   Culture: [
     "Fashion, streetwear, beauty and design launches or public competitions",
     "Internet creators, digital culture and community events with measurable outcomes",
-    "Books, visual art, literary prizes and exhibitions",
-    "Food, cultural festivals and locally significant public events",
+    "Books, art and cultural releases with a story ordinary readers can follow",
+    "Food, festivals and public events people are actually excited about",
   ],
   Sports: [
     "Basketball, women's sports and international leagues",
@@ -38,19 +38,19 @@ const lanes: Record<Category, string[]> = {
     "Gaming hardware, consumer devices and announced product launch dates",
     "Social platforms, creator tools and public feature rollouts",
     "Robotics, cybersecurity, mobility and technology competitions",
-    "Software, developer conferences and technology outside the largest AI companies",
+    "Games, apps and useful new technology beyond the largest AI companies",
   ],
   Business: [
-    "Retail, food, travel and consumer brands with scheduled milestones",
+    "Stores, restaurants, travel and consumer brands people use, with a clear upcoming change",
     "Labor negotiations, contract votes and workplace developments",
-    "Earnings, company launches and corporate decisions across different industries",
-    "Housing, transportation, energy and local business developments",
+    "New products, prices and business decisions with a clear impact on customers",
+    "Housing, transportation and energy changes with everyday stakes",
   ],
   World: [
     "International public events and developments outside the United States",
-    "Diplomacy, treaties and scheduled international decisions",
+    "International decisions with clear consequences for ordinary people",
     "Travel, infrastructure and regional milestones in different countries",
-    "International institutions and public competitions with official deadlines",
+    "Major international events and travel developments people are following; avoid routine committee elections",
   ],
   Politics: [
     "Local and state elections, ballot measures and legislative votes",
@@ -59,15 +59,16 @@ const lanes: Record<Category, string[]> = {
     "Education, transportation, labor and public services policy",
   ],
   Science: [
-    "Medicine, public health and scheduled clinical research milestones",
+    "Vaccines, treatments and public-health developments with a clear everyday outcome; avoid trial-reporting jargon",
     "Ecology, wildlife, conservation and environmental decisions",
-    "Earth science, oceans and scientific field projects",
-    "Energy, materials and public scientific demonstrations outside space launches",
+    "Earth, oceans and discoveries whose stakes are understandable without specialist training",
+    "Energy, useful inventions and public science demonstrations beyond space launches",
   ],
 };
 
 export function normalizeSubject(value: string) {
   return value
+    .replace(/['’]s\b/gi, "")
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
     .toLowerCase()
@@ -77,6 +78,7 @@ export function normalizeSubject(value: string) {
 
 // Canonicalize common aliases so a changed label cannot evade topic limits.
 const aliases: [string, RegExp][] = [
+  ["taylor swift", /\b(taylor\s+swift|(?:the\s+)?eras tour|swifties)\b|\bswift['’]s\b/i],
   [
     "mlb postseason",
     /\b(world series|mlb postseason|mlb playoffs|baseball postseason|alcs|nlcs)\b/i,
@@ -130,6 +132,10 @@ const genericNames = new Set([
   "october",
   "november",
   "december",
+  "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+  "today", "tonight", "tomorrow", "this", "next", "new", "first", "last",
+  "by", "before", "after", "game", "match", "album", "single", "tour",
+  "film", "movie", "episode", "season", "launch", "release", "price",
 ]);
 
 export function subjectKeys(topic: DraftTopic) {
@@ -137,10 +143,10 @@ export function subjectKeys(topic: DraftTopic) {
   if (topic.subjectKey) keys.add(normalizeSubject(topic.subjectKey));
   const text = `${topic.text} ${topic.subjectKey || ""}`;
   for (const [key, pattern] of aliases) if (pattern.test(text)) keys.add(key);
-  // Recent saved records predate subject metadata. Recover named people,
-  // organizations and events from their question text without a migration.
-  if (!topic.subjectKey)
-    for (const match of topic.text.matchAll(
+  // Check the actual named subjects even when the model supplies metadata.
+  // This also covers saved records predating metadata. Album, tour and chart
+  // labels must not hide the artist.
+  for (const match of topic.text.matchAll(
       /\p{Lu}[\p{L}\p{N}'’.-]*(?:\s+\p{Lu}[\p{L}\p{N}'’.-]*){0,3}/gu,
     )) {
       const key = normalizeSubject(match[0])
@@ -202,7 +208,7 @@ export function researchPlan(
 
 export function saturatedSubjects(recent: DraftTopic[]) {
   const counts = new Map<string, number>();
-  for (const topic of recent.slice(0, 40))
+  for (const topic of recent.slice(0, 150))
     for (const key of subjectKeys(topic))
       counts.set(key, (counts.get(key) || 0) + 1);
   return [...counts].filter(([, count]) => count >= 2).map(([key]) => key);
@@ -267,3 +273,4 @@ export function diversityIssue(
     return "A reused current-events story was skipped.";
   return null;
 }
+
