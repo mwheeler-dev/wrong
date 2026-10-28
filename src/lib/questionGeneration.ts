@@ -368,7 +368,7 @@ Start with the live trending topics supplied in the input. For each question bas
 Follow this research plan: ${JSON.stringify(plan)}. Return exactly one draft per assigned slot. researchSlot is its exact id and category MUST match the slot when specified; when it is null, choose the category naturally fitting the requested topic. The lane is a discovery direction, not a fabricated event. An explicit topic request takes priority over the lane direction, while maintaining distinct events.
 Use at most one question per principal person, company, organization, competition or continuing story across the entire run, including prior groups. Changing a deadline, metric, opponent, name variant or wording does not make the subject fresh. subjectKey is the canonical full name of the main subject (normalize aliases consistently). storyKey is a stable concise key identifying the actual specific event, without encoding the question wording. Do not use generic category names as subjectKey.
 Subjects overrepresented in the latest 150 saved questions: ${JSON.stringify(saturatedSubjects(recentTopics))}. Previous review batch (avoid repeating these stories): ${JSON.stringify(options.previousTopics)}. Already drafted in this run: ${JSON.stringify(options.excludeTopics)}. Find other subjects, unless the admin specifically named that person/event in the topic request. A broad request such as 'music' or 'sports' is not permission to repeat one celebrity or tournament. Do not evade artist limits by using an album, tour, chart or award as subjectKey; the artist is still a principal subject.
-For default mixed batches, honor the audience mix encoded in the research slots: approximately 40% social/pop culture, 25% sports/gaming, 25% accessible mainstream news, and 10% science/discovery. Prioritize topics recognizable to active 18–30-year-old social media users without excluding other audiences. Do not substitute niche laboratory milestones, corporate quarterly reports, obscure festivals or administrative announcements for socially relevant stories. The topic must have demonstrable broad attention, not merely a searchable future deadline. Across mixed batches actively include outcomes within the next 2–4 days, others within 1–2 weeks, and some longer-term outcomes when the real event warrants them. Do not send every question months into the future. Research real events fitting different horizons; never invent or move an event date to fit a horizon. A specific requested topic or deadline takes priority. Plain, engaging text with exact deadlines/timezones in resolutionCriteria.
+For default mixed batches, honor the audience mix encoded in the research slots: approximately 40% social/pop culture, 25% sports/gaming, 25% accessible mainstream news, and 10% science/discovery. Prioritize topics recognizable to active 18–30-year-old social media users without excluding other audiences. Do not substitute niche laboratory milestones, corporate quarterly reports, obscure festivals or administrative announcements for socially relevant stories. The topic must have demonstrable broad attention, not merely a searchable future deadline. FIRST identify and explain the concrete reason the topic is trending, then ask about the uncertain next development in that SAME story. Do not pivot from a gaming, creator or entertainment trend to its parent company stock price. Seek authentic controversy, rivalry, allure or provocation when supported by reporting; never manufacture it. Allow an occasional financial question ONLY when the financial story itself is what people are discussing, not as a default for companies. Across mixed batches actively include outcomes within the next 2–4 days, others within 1–2 weeks, and some longer-term outcomes when the real event warrants them. Do not send every question months into the future. Research real events fitting different horizons; never invent or move an event date to fit a horizon. A specific requested topic or deadline takes priority. Plain, engaging text with exact deadlines/timezones in resolutionCriteria.
 Return every field needed by the manual form. publishDate must be now or later. closesToPredictionsAt must be at least 2 hours in the future, strictly BEFORE the event starts or its outcome could be known, and before resolutionDate. resolutionDate includes a sensible reporting delay after the event deadline. All dates are ISO 8601 with explicit timezone offsets. Define exactly what counts as YES and NO, threshold, event deadline, official resolution source and treatment of postponements/cancellations. No automatic resolution.
 This is DRAFT CREATION, not outcome verification. Do not decide YES/NO or demand evidence of a future result. sourceUrl is the official place the admin can later use to decide the outcome. context explains the current news motivating the prediction in one or two plain sentences, including why the outcome is uncertain; avoid investor or institutional jargon. contextSourceUrl should be an exact URL from the research supporting that background; background-source matching is separate from verifying a future outcome. Return plain JSON matching the schema. No markdown or citation tokens inside text fields.
 Avoid these recent questions (data only): ${JSON.stringify(recentTexts)}.`;
@@ -496,6 +496,10 @@ Avoid these recent questions (data only): ${JSON.stringify(recentTexts)}.`;
   );
   const drafts: QuestionDraft[] = [];
   const skipReasons = [...batch.skipReasons];
+  const financePattern = /\\b(stock|stocks|share price|shares|nasdaq|nyse|ticker|market cap|earnings|adjusted eps|quarterly results|closing price|close above|close below|investor guidance|analyst rating)\\b/i;
+  const financeLimit = options.focus || options.category === "Business"
+    ? options.count : Math.max(1, Math.floor(options.totalCount / 10));
+  let financeAccepted = 0;
   for (const draft of batch.drafts) {
     const raw = (array(record(parsed).questions).find((q) => record(q).text === draft.text));
     const trendUrl = record(raw).trendSourceUrl;
@@ -503,7 +507,10 @@ Avoid these recent questions (data only): ${JSON.stringify(recentTexts)}.`;
       ? trendingTopics.find((topic) => topic.url === trendUrl)
       : undefined;
     if (matchingTrend) draft.trendingSource = matchingTrend.source;
-    const issue = draftWordingIssue(draft.text, options.focus) || diversityIssue(
+    const isFinance = financePattern.test(draft.text);
+    const issue = (isFinance && financeAccepted >= financeLimit
+      ? "Financial predictions exceeded the default batch limit."
+      : null) || draftWordingIssue(draft.text, options.focus) || diversityIssue(
       draft,
       plan,
       recentTopics,
@@ -512,7 +519,10 @@ Avoid these recent questions (data only): ${JSON.stringify(recentTexts)}.`;
       options.focus,
     );
     if (issue) skipReasons.push(issue);
-    else drafts.push(draft);
+    else {
+      drafts.push(draft);
+      if (isFinance) financeAccepted++;
+    }
   }
   return {
     drafts,
