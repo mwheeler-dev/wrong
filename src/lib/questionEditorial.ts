@@ -7,11 +7,18 @@ The question text is one short, direct YES/NO question: aim for 8–18 words, at
 STYLE EXAMPLES ONLY, NOT NEWS OR SUGGESTED EVENTS: 'Will a new COVID-19 vaccine roll out in the US by Jan 31?' 'Will [artist] release a new album by Friday, Oct 16?' 'Will [team] win its Oct 18 game?' Use actual researched names and dates. Never reuse example subjects as a default roster.
 Keep the exact timezone, official source, threshold definitions, exceptions and reporting rules in resolutionCriteria. Include the place or essential threshold in the question when it changes what players are predicting; shortening must not change the outcome. A trial result is not a vaccine rollout. If an event needs specialist terminology to make sense, choose a different researched event rather than disguising it with vague wording.
 For music, deliberately research different artists, genres, scenes and countries. Do not default to Taylor Swift or replace her with a single other recurring artist. A broad music request requires different artists; only a request naming an artist permits repeated questions about that artist.
+For companies known for consumer products, entertainment, gaming or social platforms, predict the consumer-facing story that made the company relevant, NOT its share price, investor relations, quarterly earnings, analyst ratings or stock performance. EA means games and players, not ticker EA. A brand's existence does not make its stock performance a culturally relevant prediction. Business-category questions should still concern consumer-facing events, major labor decisions or public consequences unless an explicit finance-focused topic was requested.
 Before returning each draft, read it aloud: would an ordinary interested player immediately know what is at stake, without looking up a committee, filing or technical term? If not, replace the event. No academic phrasing, fake controversy, invented stakes or certainty disguised as a prediction.`;
 
 export function draftWordingIssue(text: string, focus = ""): string | null {
   if (text.length > 180 || text.trim().split(/\s+/).length > 24)
     return "A draft was too long for a plain, direct question.";
+  // A trending consumer brand is not permission to turn gaming/pop culture
+  // into an investor question. Reject these before the admin sees the draft.
+  const financeWording = /\\b(stock|share price|shares|nasdaq|nyse|ticker|market cap|earnings|adjusted eps|quarterly results|closing price|close above|close below|investor guidance|analyst rating)\\b/i;
+  const financeFocus = /\\b(stock|shares|finance|financial|earnings|trading|nasdaq|nyse|investing|market)\\b/i;
+  if (financeWording.test(text) && !financeFocus.test(focus))
+    return "A consumer-facing topic was converted into an investor or stock-market question.";
   // Backstop for the specialist language seen in actual generated cards.
   // A request explicitly using those specialist terms may call for them.
   const specialistWording = /\b(topline|phase\s*(?:[1-4]|i{1,3}|iv)\b|plenipotentiary|radio regulations board|licensed business|integration milestone|reorgani[sz]ation)\b/i;
