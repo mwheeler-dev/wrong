@@ -187,18 +187,35 @@ export function researchPlan(
       counts.get(a)! - counts.get(b)! ||
       hash(`${seed}:${a}`) - hash(`${seed}:${b}`),
   );
+  // Default batches prioritize broad, socially relevant topics rather than
+  // treating every editorial category as equally interesting to players.
+  // Explicit category/focus requests retain their existing behavior.
+  const audienceLanes: { category: Category; direction: string }[] = [
+    { category: "Entertainment", direction: "Current viral music, artists, streaming series, celebrities or creators with a real upcoming uncertain outcome" },
+    { category: "Culture", direction: "Current internet culture, fashion, social trends, creators or widely discussed pop culture" },
+    { category: "Entertainment", direction: "Popular films, albums, streaming releases or creator rivalries people aged 18–30 are discussing" },
+    { category: "Culture", direction: "Viral online conversations or cultural moments with objectively measurable upcoming outcomes" },
+    { category: "Sports", direction: "Major current sports matchups, combat sports or athlete rivalries people actively discuss" },
+    { category: "Sports", direction: "Popular sports, esports or gaming competitions with clear uncertain outcomes" },
+    { category: "Tech", direction: "Gaming, consumer tech or social apps that everyday users care about, not corporate investor milestones" },
+    { category: "Politics", direction: "Widely discussed politics or public decisions with immediate real-world consequences" },
+    { category: "World", direction: "Major global developments actively discussed by the public, not administrative announcements" },
+    { category: "Science", direction: "Widely discussed science, health, space or wildlife discoveries with accessible public stakes" },
+  ];
   const used = new Set(accepted.map((q) => q.researchSlot));
   return Array.from({ length: totalCount }, (_, i) => {
-    const selected = (category || order[i % order.length]) as Category;
+    const selected = (category || (focus ? order[i % order.length] : audienceLanes[(i + hash(seed) % audienceLanes.length) % audienceLanes.length].category)) as Category;
     const cycle = category ? i : Math.floor(i / order.length);
     return {
       id: `slot-${i}`,
       category: focus && !category ? null : selected,
       direction: focus
         ? `Find distinct current events within the requested topic: ${focus}`
-        : lanes[selected][
-            (hash(`${seed}:${selected}`) + cycle) % lanes[selected].length
-          ],
+        : !category
+          ? audienceLanes[(i + hash(seed) % audienceLanes.length) % audienceLanes.length].direction
+          : lanes[selected][
+              (hash(`${seed}:${selected}`) + cycle) % lanes[selected].length
+            ],
     };
   })
     .slice(offset)
