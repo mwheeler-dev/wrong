@@ -12,6 +12,7 @@ type ReviewDraft = {
   context: string;
   contextSourceUrl: string;
   contextSourceResearched?: boolean;
+  trendingSource?: QuestionDraft["trendingSource"];
   topic: DraftTopic;
   status: "review" | "created" | "skipped";
 };
@@ -102,6 +103,7 @@ export function AdminQuestionComposer({
                   context: draft.context,
                   contextSourceUrl: draft.contextSourceUrl,
                   contextSourceResearched: draft.contextSourceResearched,
+                  trendingSource: draft.trendingSource,
                   topic: {
                     text: draft.text,
                     category: draft.category,
@@ -309,6 +311,7 @@ export function AdminQuestionComposer({
             </div>
             <div className="mb-3 rounded-2xl border border-accent/40 bg-accent/5 p-4 text-sm">
               <p>{current.context}</p>
+              <p className="mt-2 text-xs font-semibold text-muted">Trending source: {current.trendingSource || "Independent research (no matching trend feed)"}</p>
               {current.contextSourceResearched === false && (
                 <p className="mt-2 font-semibold">
                   Background source needs review before approval.
