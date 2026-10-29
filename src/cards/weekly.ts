@@ -1,6 +1,6 @@
 export const templates = ["Bold Challenge", "Confidence Trap", "Reality Check", "Category Clash"] as const;
 export const series = ["Prove You’re Right", "Confidence Trap", "Reality Check", "Category Battles / Hot Takes"];
-export type PromoSlide = { type: "hook" | "prediction" | "cta"; text: string; questionId?: string };
+export type PromoSlide = { type: "hook" | "prediction" | "cta"; text: string; questionId?: string; kicker?: string; subtext?: string; category?: string; yesPct?: number; source?: string };
 export type WeeklyDeck = { id: string; series: string; category: string; template: number; accent: boolean; slot: string; caption: string; exported: boolean; scheduled: boolean; slides: PromoSlide[] };
 export type LiveQuestion = { id: string; text: string; category: string; status: string; publishDate: string; closesToPredictionsAt: string | null; resolutionDate: string; resolutionCriteria: string; correctAnswer: string | null };
 export function makeWeek(week: string): WeeklyDeck[] {
@@ -25,12 +25,12 @@ export function qa(deck: WeeklyDeck, questions: LiveQuestion[], all: WeeklyDeck[
   if(s.text.length>130) issues.push(`Slide ${i+1}: possible text overflow`);
   if(s.type!=="prediction") return;
   const q=questions.find(q=>q.id===s.questionId);
-  if(!q) issues.push(`Slide ${i+1}: link a live question`);
-  else {
+  if(q) {
    if(q.status!=="PENDING" || (q.closesToPredictionsAt||q.resolutionDate).slice(0,10)<=deck.slot.slice(0,10)) issues.push(`Slide ${i+1}: resolved or closing on/before posting day — review timing`);
    if(q.publishDate.slice(0,10)>deck.slot.slice(0,10)) issues.push(`Slide ${i+1}: question not published yet`);
   }
   const key=s.questionId||s.text.trim().toLowerCase();
+  if(!key) return;
   if(seen.has(key)) issues.push(`Slide ${i+1}: duplicate question in deck`); seen.add(key);
   if(all.some(d=>d.id!==deck.id&&d.slides.some(x=>x.type==="prediction"&&(x.questionId===key||x.text.trim().toLowerCase()===s.text.trim().toLowerCase())))) issues.push(`Slide ${i+1}: repeated across decks`);
  });
@@ -48,7 +48,12 @@ export function validateBatch(raw: unknown): WeeklyDeck[] {
   const slides=d.slides.map((s:PromoSlide)=>{
    if(!s||!["hook","prediction","cta"].includes(s.type)||typeof s.text!=="string"||s.text.length>200) throw new Error("Invalid slide");
    if(s.questionId!==undefined&&(typeof s.questionId!=="string"||s.questionId.length>100)) throw new Error("Invalid question reference");
-   return {type:s.type,text:s.text,questionId:s.questionId};
+   for(const [key,max] of Object.entries({kicker:80,subtext:60,category:40,source:60})) {
+    const value=s[key as keyof PromoSlide];
+    if(value!==undefined&&(typeof value!=="string"||value.length>max))throw new Error(`Invalid ${key}`);
+   }
+   if(s.yesPct!==undefined&&(!Number.isInteger(s.yesPct)||s.yesPct<0||s.yesPct>100))throw new Error("Invalid percentage");
+   return {type:s.type,text:s.text,questionId:s.questionId,kicker:s.kicker,subtext:s.subtext,category:s.category,yesPct:s.yesPct,source:s.source};
   });
   return {id:d.id,series:d.series,category:d.category,slot:d.slot,caption:d.caption,template:d.template,accent:d.accent===true,exported:d.exported===true,scheduled:d.scheduled===true,slides};
  });

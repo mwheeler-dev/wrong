@@ -8,8 +8,8 @@ async function admin(){const user=await getCurrentUser();return user&&isAdmin(us
 export async function GET(req:Request){
  if(!await admin()) return NextResponse.json({error:"Unauthorized"},{status:403});
  const week=new URL(req.url).searchParams.get("week")||"";
- const [batch,questions]=await Promise.all([prisma.cardBatch.findUnique({where:{week}}),prisma.question.findMany({orderBy:{publishDate:"desc"},take:1000,select:{id:true,text:true,category:true,status:true,publishDate:true,closesToPredictionsAt:true,resolutionDate:true,resolutionCriteria:true,correctAnswer:true}})]);
- return NextResponse.json({decks:batch?.payload,questions});
+ const batch=await prisma.cardBatch.findUnique({where:{week}});
+ return NextResponse.json({decks:batch?.payload},{headers:{"Cache-Control":"no-store"}});
 }
 export async function PUT(req:Request){
  if(!await admin()) return NextResponse.json({error:"Unauthorized"},{status:403});
