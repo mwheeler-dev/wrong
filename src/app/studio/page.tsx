@@ -35,6 +35,7 @@ export default async function StudioIndex() {
         export.
       </p>
 
+      <Link href="/studio/weekly" className="btn-accent mt-6 inline-block">Weekly TikTok workspace →</Link>
       <section className="mt-10">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">
           Your decks ({dbDecks.length})

@@ -1,0 +1,1 @@
+CREATE TABLE "CardBatch" ("week" TEXT PRIMARY KEY, "payload" JSONB NOT NULL, "updatedAt" TIMESTAMP(3) NOT NULL);

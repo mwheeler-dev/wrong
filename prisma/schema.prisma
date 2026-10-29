@@ -114,3 +114,10 @@ model CardDeck {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+// Weekly promotional decks are independent of live questions and manual decks.
+model CardBatch {
+  week String @id
+  payload Json
+  updatedAt DateTime @updatedAt
+}
