@@ -1,6 +1,8 @@
 import {
   COLORS,
   type CardColors,
+  type CardTextFormat,
+  cardFontScale,
   SLIDE_HEIGHT,
   SLIDE_PADDING,
   SLIDE_WIDTH,
@@ -14,19 +16,23 @@ type Props = {
   index: number;
   total: number;
   colors?: CardColors;
+  format?: CardTextFormat;
 };
 
 /**
  * Slide 1 — the hook.
  * Black bg, lime period, huge white type. Designed to stop the scroll.
  */
-export function HookSlide({ slide, index, total, colors = COLORS }: Props) {
-  const size = autoFitSize(slide.text, TYPE_SCALE.hook);
+export function HookSlide({ slide, index, total, colors = COLORS, format }: Props) {
+  const size = Math.round(autoFitSize(slide.text, TYPE_SCALE.hook) * cardFontScale(format));
 
   return (
     <div
       style={{
         width: SLIDE_WIDTH,
+        boxSizing: "border-box",
+        textAlign: "left",
+        flexShrink: 0,
         height: SLIDE_HEIGHT,
         display: "flex",
         flexDirection: "column",
@@ -34,6 +40,7 @@ export function HookSlide({ slide, index, total, colors = COLORS }: Props) {
         color: colors.paper,
         padding: SLIDE_PADDING,
         fontFamily: "Inter",
+        fontFeatureSettings: "normal",
         position: "relative",
       }}
     >
@@ -99,7 +106,7 @@ export function HookSlide({ slide, index, total, colors = COLORS }: Props) {
           letterSpacing: "-0.04em",
         }}
       >
-        {slide.text}
+        <div style={{ width: "100%", textAlign: format?.alignment ?? "left", overflowWrap: "break-word" }}>{slide.text}</div>
       </div>
 
       {/* Bottom row: swipe indicator */}

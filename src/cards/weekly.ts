@@ -1,8 +1,8 @@
-import { CARD_THEMES, deckTheme } from "./theme";
+import { CARD_THEMES, deckTheme, type CardTextFormat, type CustomCardColors } from "./theme";
 export const templates = ["Bold Challenge", "Confidence Trap", "Reality Check", "Category Clash"] as const;
 export const series = ["Prove You’re Right", "Confidence Trap", "Reality Check", "Category Battles / Hot Takes"];
-export type PromoSlide = { type: "hook" | "prediction" | "cta"; text: string; questionId?: string; kicker?: string; subtext?: string; category?: string; yesPct?: number; source?: string };
-export type WeeklyDeck = { id: string; series: string; category: string; template: number; theme?: number; accent: boolean; slot: string; caption: string; exported: boolean; scheduled: boolean; slides: PromoSlide[] };
+export type PromoSlide = { type: "hook" | "prediction" | "cta"; text: string; questionId?: string; format?: CardTextFormat; kicker?: string; subtext?: string; category?: string; yesPct?: number; source?: string };
+export type WeeklyDeck = { id: string; series: string; category: string; template: number; theme?: number; customColors?: CustomCardColors; accent: boolean; slot: string; caption: string; exported: boolean; scheduled: boolean; slides: PromoSlide[] };
 export type LiveQuestion = { id: string; text: string; category: string; status: string; publishDate: string; closesToPredictionsAt: string | null; resolutionDate: string; resolutionCriteria: string; correctAnswer: string | null };
 export function makeWeek(week: string): WeeklyDeck[] {
  const decks: WeeklyDeck[] = [];
@@ -46,6 +46,9 @@ export function validateBatch(raw: unknown): WeeklyDeck[] {
   if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(d.slot)||!Number.isFinite(Date.parse(d.slot))) throw new Error("Invalid slot");
   if(!Number.isInteger(d.template)||d.template<0||d.template>3) throw new Error("Invalid template");
   if(d.theme!==undefined&&(!Number.isInteger(d.theme)||d.theme<0||d.theme>=CARD_THEMES.length)) throw new Error("Invalid theme");
+  if(d.customColors!==undefined){
+   if(!d.customColors||typeof d.customColors!=="object"||["ink","paper","lime"].some(k=>typeof d.customColors[k]!=="string"||!/^#[0-9a-f]{6}$/i.test(d.customColors[k])))throw new Error("Invalid custom colors");
+  }
   if(!Array.isArray(d.slides)||d.slides.length<3||d.slides.length>12) throw new Error("Use 3–12 slides");
   const slides=d.slides.map((s:PromoSlide)=>{
    if(!s||!["hook","prediction","cta"].includes(s.type)||typeof s.text!=="string"||s.text.length>200) throw new Error("Invalid slide");
@@ -55,9 +58,12 @@ export function validateBatch(raw: unknown): WeeklyDeck[] {
     if(value!==undefined&&(typeof value!=="string"||value.length>max))throw new Error(`Invalid ${key}`);
    }
    if(s.yesPct!==undefined&&(!Number.isInteger(s.yesPct)||s.yesPct<0||s.yesPct>100))throw new Error("Invalid percentage");
-   return {type:s.type,text:s.text,questionId:s.questionId,kicker:s.kicker,subtext:s.subtext,category:s.category,yesPct:s.yesPct,source:s.source};
+   if(s.format!==undefined){
+    if(!s.format||typeof s.format!=="object"||(s.format.alignment!==undefined&&!["left","center","right"].includes(s.format.alignment))||(s.format.fontScale!==undefined&&(typeof s.format.fontScale!=="number"||!Number.isFinite(s.format.fontScale)||s.format.fontScale<0.7||s.format.fontScale>1.15)))throw new Error("Invalid slide formatting");
+   }
+   return {format:s.format?{alignment:s.format.alignment,fontScale:s.format.fontScale}:undefined,type:s.type,text:s.text,questionId:s.questionId,kicker:s.kicker,subtext:s.subtext,category:s.category,yesPct:s.yesPct,source:s.source};
   });
-  return {id:d.id,series:d.series,category:d.category,slot:d.slot,caption:d.caption,template:d.template,theme:d.theme,accent:d.accent===true,exported:d.exported===true,scheduled:d.scheduled===true,slides};
+  return {id:d.id,series:d.series,category:d.category,slot:d.slot,caption:d.caption,template:d.template,theme:d.theme,customColors:d.customColors?{ink:d.customColors.ink,paper:d.customColors.paper,lime:d.customColors.lime}:undefined,accent:d.accent===true,exported:d.exported===true,scheduled:d.scheduled===true,slides};
  });
 }
 export function filename(d:WeeklyDeck,i:number) {

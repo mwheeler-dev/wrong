@@ -54,3 +54,17 @@ export const TYPE_SCALE = {
   question: { min: 96, max: 150, shortLen: 24, longLen: 110 },
   cta: { min: 120, max: 180, shortLen: 18, longLen: 80 },
 } as const;
+
+export type CardTextFormat = { alignment?: "left" | "center" | "right"; fontScale?: number };
+export type CustomCardColors = { ink: string; paper: string; lime: string };
+export function deckColors(deck: { id: string; theme?: number; customColors?: CustomCardColors }): CardColors {
+  const preset = CARD_THEMES[deckTheme(deck)].colors;
+  if (!deck.customColors) return preset;
+  const colors = deck.customColors;
+  const dim = (hex: string) => `rgba(${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)},0.6)`;
+  return { ...colors, paperDim: dim(colors.paper), inkDim: dim(colors.ink) };
+}
+export function cardFontScale(format?: CardTextFormat): number {
+  const scale = format?.fontScale ?? 1;
+  return Number.isFinite(scale) ? Math.max(0.7, Math.min(1.15, scale)) : 1;
+}

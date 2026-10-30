@@ -1,4 +1,4 @@
-import { CARD_THEMES, deckTheme } from "./theme";
+import { deckColors } from "./theme";
 import { Slide } from "./Slide";
 import type { Slide as SlideData } from "./types";
 import type { WeeklyDeck } from "./weekly";
@@ -10,5 +10,5 @@ export function PromoSlide({deck,index}:{deck:WeeklyDeck;index:number}) {
   :s.type==="cta"
    ?{type:"cta",text:s.text||"See how wrong you really are.",subtext:s.subtext??"Wrong."}
    :{type:"prediction",question:s.text||"Your prediction here",category:s.category||deck.category,yesPct:s.yesPct??50,noPct:100-(s.yesPct??50),source:s.source??"Illustrative split"};
- return <Slide slide={slide} index={index} total={deck.slides.length} colors={CARD_THEMES[deckTheme(deck)].colors}/>;
+ return <Slide slide={slide} index={index} total={deck.slides.length} colors={deckColors(deck)} format={s.format}/>;
 }

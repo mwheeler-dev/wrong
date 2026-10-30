@@ -1,7 +1,7 @@
 import { HookSlide } from "./templates/HookSlide";
 import { PredictionSlide } from "./templates/PredictionSlide";
 import { CTASlide } from "./templates/CTASlide";
-import { COLORS, type CardColors } from "./theme";
+import { COLORS, type CardColors, type CardTextFormat } from "./theme";
 import type { Slide as SlideData } from "./types";
 
 type Props = {
@@ -9,19 +9,20 @@ type Props = {
   index: number;
   total: number;
   colors?: CardColors;
+  format?: CardTextFormat;
 };
 
 /**
  * Dispatcher — pick the right template for the slide variant.
  * Used by both the studio (browser HTML) and the Satori PNG endpoint.
  */
-export function Slide({ slide, index, total, colors = COLORS }: Props) {
+export function Slide({ slide, index, total, colors = COLORS, format }: Props) {
   switch (slide.type) {
     case "hook":
-      return <HookSlide slide={slide} index={index} total={total} colors={colors} />;
+      return <HookSlide slide={slide} index={index} total={total} colors={colors} format={format} />;
     case "prediction":
-      return <PredictionSlide slide={slide} index={index} total={total} colors={colors} />;
+      return <PredictionSlide slide={slide} index={index} total={total} colors={colors} format={format} />;
     case "cta":
-      return <CTASlide slide={slide} index={index} total={total} colors={colors} />;
+      return <CTASlide slide={slide} index={index} total={total} colors={colors} format={format} />;
   }
 }

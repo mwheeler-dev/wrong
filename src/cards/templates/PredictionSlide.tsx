@@ -1,6 +1,8 @@
 import {
   COLORS,
   type CardColors,
+  type CardTextFormat,
+  cardFontScale,
   SLIDE_HEIGHT,
   SLIDE_PADDING,
   SLIDE_WIDTH,
@@ -14,6 +16,7 @@ type Props = {
   index: number;
   total: number;
   colors?: CardColors;
+  format?: CardTextFormat;
 };
 
 /**
@@ -21,14 +24,17 @@ type Props = {
  * White bg. Category pill on top, huge question center, two YES/NO bars
  * stacked, with the leading bar filled in lime to create instant tension.
  */
-export function PredictionSlide({ slide, index, total, colors = COLORS }: Props) {
-  const size = autoFitSize(slide.question, TYPE_SCALE.question);
+export function PredictionSlide({ slide, index, total, colors = COLORS, format }: Props) {
+  const size = Math.round(autoFitSize(slide.question, TYPE_SCALE.question) * cardFontScale(format));
   const yesLeads = slide.yesPct >= slide.noPct;
 
   return (
     <div
       style={{
         width: SLIDE_WIDTH,
+        boxSizing: "border-box",
+        textAlign: "left",
+        flexShrink: 0,
         height: SLIDE_HEIGHT,
         display: "flex",
         flexDirection: "column",
@@ -36,6 +42,7 @@ export function PredictionSlide({ slide, index, total, colors = COLORS }: Props)
         color: colors.ink,
         padding: SLIDE_PADDING,
         fontFamily: "Inter",
+        fontFeatureSettings: "normal",
       }}
     >
       {/* Top row: category pill + counter */}
@@ -94,7 +101,7 @@ export function PredictionSlide({ slide, index, total, colors = COLORS }: Props)
           paddingBottom: 56,
         }}
       >
-        {slide.question}
+        <div style={{ width: "100%", textAlign: format?.alignment ?? "left", overflowWrap: "break-word" }}>{slide.question}</div>
       </div>
 
       {/* Two stacked bars */}
