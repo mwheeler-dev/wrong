@@ -79,7 +79,7 @@ export default function WeeklyStudio() {
   const targets=indices||decks.map((d,i)=>({d,i})).filter(({d})=>!complete(d)).slice(0,count).map(({i})=>i);
   if(!targets.length){setMessage("All 20 decks are filled. Open a deck to regenerate it, or start another week.");return;}
   lock.current=true;setBusy(true);setError("");setFailures([]);stop.current=false;setProgress({done:0,total:targets.length});
-  let next=decks;let done=0;const failed:number[]=[];
+  let next=decks;let done=0;const failed:number[]=[];const reasons:string[]=[];
   try{
    await persist(next);
    for(const i of targets){
@@ -87,9 +87,9 @@ export default function WeeklyStudio() {
     setMessage(`Generating deck ${i+1} · ${done}/${targets.length} complete`);
     let generated:{caption:string;slides:SlideData[]};
     try{
-     generated=await requestCardDeck({topic,category,series:next[i].series,excludeTexts:next.filter((_,j)=>j!==i).flatMap(d=>d.slides.filter(s=>s.type==="prediction"&&s.text.trim()).map(s=>s.text))},()=>setMessage(`Retrying deck ${i+1} automatically · ${done}/${targets.length} complete`));
+     generated=await requestCardDeck({topic,category,deckIndex:i,series:next[i].series,excludeTexts:next.filter((_,j)=>j!==i).flatMap(d=>d.slides.filter(s=>s.type==="prediction"&&s.text.trim()).map(s=>s.text))},()=>setMessage(`Retrying deck ${i+1} automatically · ${done}/${targets.length} complete`));
     }catch(e){
-     failed.push(i);setFailures([...failed]);
+     failed.push(i);reasons.push(`Deck ${i+1}: ${(e as Error).message}`);setFailures([...failed]);
      setMessage(`Deck ${i+1} needs another pass; continuing the batch…`);
      if(e instanceof CardRequestError&&!e.retryable){setError((e as Error).message);break;}
      continue;
@@ -99,7 +99,7 @@ export default function WeeklyStudio() {
     await persist(next); // Checkpoint every completed deck; stop if saving fails.
     done++;setProgress({done,total:targets.length});
    }
-   if(failed.length)setError(previous=>previous||`Could not finish deck${failed.length===1?"":"s"} ${failed.map(i=>i+1).join(", ")} after automatic retries. All completed decks are saved.`);
+   if(failed.length)setError(previous=>previous||`Could not finish deck${failed.length===1?"":"s"} ${failed.map(i=>i+1).join(", ")} after automatic retries. ${reasons[0]||""} All completed decks are saved.`);
    setMessage(`${done} deck${done===1?"":"s"} generated and saved.${stop.current?" Generation stopped.":failed.length?" Retry the unfinished decks below.":" Click a deck below to edit its slides."}`);
   }catch(e){setError((e as Error).message);setMessage("Generation paused. Your latest deck is still in this tab; click Save before leaving.");}
   finally{lock.current=false;setBusy(false);setProgress(null);}

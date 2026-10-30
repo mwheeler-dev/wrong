@@ -7,11 +7,11 @@ async function run(){
  const saved=Array.isArray(row?.payload)?row.payload as unknown as WeeklyDeck[]:[];
  const exclude=saved.flatMap(d=>d.slides.filter(s=>s.type==='prediction'&&s.text.trim()).map(s=>s.text));
  console.log('[card-smoke] Existing-batch probe',JSON.stringify({savedPredictions:exclude.length}));
- const probe=await generateCardDeck(cardGenerationOptions({series:saved[12]?.series||'Reality Check',excludeTexts:exclude}));
+ const probe=await generateCardDeck(cardGenerationOptions({deckIndex:12,series:saved[12]?.series||'Reality Check',excludeTexts:exclude}));
  console.log('[card-smoke] Existing-batch probe PASS',probe.slides.length);
  const all:string[]=[];
  for(const [i,slot] of makeWeek('2026-11-02').entries()){
-  const deck=await generateCardDeck(cardGenerationOptions({series:slot.series,excludeTexts:all}));
+  const deck=await generateCardDeck(cardGenerationOptions({deckIndex:i,series:slot.series,excludeTexts:all}));
   all.push(...deck.slides.filter(s=>s.type==='prediction').map(s=>s.text));
   console.log('[card-smoke] Deck',i+1,'of 20 PASS; unique predictions:',new Set(all.map(t=>t.toLowerCase().replace(/[^a-z0-9]/g,''))).size);
  }

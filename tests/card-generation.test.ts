@@ -32,7 +32,7 @@ test('duplicate repair preserves four good cards and requests only the missing p
   global.fetch=async (_url,init)=>{
    calls++;const body=JSON.parse(String(init?.body));const input=JSON.parse(body.input);
    const raw=calls===1?fixture:{...fixture,predictions:[{text:'Will a different contender win its next game?',category:'Sports',yesPct:61}]};
-   if(calls===2){assert.equal(input.requestedPredictions,1);assert.equal(body.text.format.schema.properties.predictions.minItems,1);assert.ok(input.excludeTexts.includes(fixture.predictions[4].text));}
+   if(calls===2){assert.equal(input.requestedPredictions,8);assert.equal(body.text.format.schema.properties.predictions.minItems,8);assert.ok(input.assignments.length===8);assert.ok(input.excludeTexts.includes(fixture.predictions[4].text));}
    return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(raw)}]}]});
   };
   const deck=await generateCardDeck(cardGenerationOptions({excludeTexts:[excluded]}));assert.equal(calls,2);assert.equal(deck.slides.length,7);assert.equal(deck.slides[1].text,fixture.predictions[1].text);assert.equal(deck.slides[5].text,'Will a different contender win its next game?');
