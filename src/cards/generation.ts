@@ -52,8 +52,15 @@ async function requestCardDraft(options:ReturnType<typeof cardGenerationOptions>
   })
  });}catch{throw new CardGenerationError("AI took too long to respond. Your completed decks are saved; retry this deck.",504);}
  if([401,403].includes(response.status))throw new CardGenerationError("AI configuration needs attention. Check model access and API settings.",503,false);
- if(!response.ok)throw new CardGenerationError(response.status===429?"AI usage limit reached. Wait a moment and retry.":"AI could not generate this deck. Retry in a moment.",response.status===429?429:502);
- const data=await response.json();if(data.status!=="completed")throw new CardGenerationError("AI did not finish this deck. Retry it.");
+ if(!response.ok){
+  const detail=await response.json().catch(()=>({}));
+  console.warn("[card-ai-upstream]",JSON.stringify({status:response.status,code:detail.error?.code,param:detail.error?.param,type:detail.error?.type,requestId:response.headers.get("x-request-id")}));
+  throw new CardGenerationError(response.status===429?"AI usage limit reached. Wait a moment and retry.":"AI could not generate this deck. Retry in a moment.",response.status===429?429:502);
+ }
+ const data=await response.json();if(data.status!=="completed"){
+  console.warn("[card-ai-incomplete]",JSON.stringify({status:data.status,details:data.incomplete_details,usage:data.usage,excluded:options.excludeTexts.length,requestedCount}));
+  throw new CardGenerationError("AI did not finish this deck. Retry it.");
+ }
  const text=(data.output||[]).filter((v:{type:string})=>v.type==="message").flatMap((v:{content:unknown[]})=>v.content||[]).filter((v:{type:string})=>v.type==="output_text").map((v:{text:string})=>v.text).join("");
  let parsed:unknown;try{parsed=JSON.parse(text);}catch{throw new CardGenerationError("AI returned unreadable copy. Retry this deck.");}
  return parsed as Record<string,unknown>;
@@ -74,14 +81,14 @@ export async function generateCardDeck(options:ReturnType<typeof cardGenerationO
    const nextCopy=parseCopy(raw);copy??=nextCopy;
    if(Array.isArray(raw.predictions))for(const q of raw.predictions){
     if(predictions.length===5)break;
-    try{predictions.push(parsePrediction(q,used));}catch(e){lastError=e;}
+    try{predictions.push(parsePrediction(q,used));}catch(e){lastError=e;console.warn("[card-ai-rejected]",JSON.stringify({attempt,accepted:predictions.length,excluded:options.excludeTexts.length,reason:e instanceof Error?e.message:"invalid card"}));}
    }
    if(predictions.length===5&&copy)return {caption:copy.caption,slides:[{type:"hook" as const,text:copy.hook,kicker:copy.kicker},...predictions,{type:"cta" as const,text:copy.cta,subtext:"Wrong."}]};
   }catch(e){
    if(e instanceof CardGenerationError&&!e.retryable)throw e;
-   lastError=e;
+   lastError=e;console.warn("[card-ai-attempt]",JSON.stringify({attempt,accepted:predictions.length,reason:e instanceof Error?e.message:"unknown"}));
   }
  }
  if(lastError instanceof CardGenerationError && [429,503,504].includes(lastError.status))throw lastError;
- throw new CardGenerationError("Could not find five fresh predictions after automatic retries. Other decks can continue.");
+ throw new CardGenerationError(`Could not finish this deck: ${lastError instanceof Error?lastError.message:"not enough fresh predictions"}`);
 }
