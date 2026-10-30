@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { makeWeek, qa, series, filename, manifest, type WeeklyDeck, type PromoSlide as SlideData } from "@/cards/weekly";
+import PngDownloads from "./PngDownloads";
 import { PromoSlide } from "@/cards/PromoSlide";
 import { zip } from "@/cards/zip";
 import { CARD_THEMES, deckTheme, deckColors } from "@/cards/theme";
@@ -29,6 +30,7 @@ export default function WeeklyStudio() {
  const [count,setCount]=useState(20);
  const [category,setCategory]=useState("");
  const [topic,setTopic]=useState("");
+ const [pngIndex,setPngIndex]=useState<number|null>(null);
  const [selected,setSelected]=useState<number|null>(null);
  const [editing,setEditing]=useState(0);
  const [busy,setBusy]=useState(false);
@@ -104,6 +106,15 @@ export default function WeeklyStudio() {
   }catch(e){setError((e as Error).message);setMessage("Generation paused. Your latest deck is still in this tab; click Save before leaving.");}
   finally{lock.current=false;setBusy(false);setProgress(null);}
  }
+ async function openPngs(index:number){
+  if(lock.current||!complete(decks[index]))return;
+  lock.current=true;setBusy(true);setError("");
+  try{await persist(decks);setPngIndex(index);}catch(e){setError((e as Error).message);}finally{lock.current=false;setBusy(false);}
+ }
+ async function markPngExported(index:number){
+  const next=decks.map((d,i)=>i===index?{...d,exported:true}:d);
+  setDecks(next);setDirty(true);await persist(next);
+ }
  async function exportDecks(indices:number[]) {
   if(lock.current||!indices.length)return;lock.current=true;setBusy(true);setError("");
   try{
@@ -140,12 +151,12 @@ export default function WeeklyStudio() {
   </section>
   <div role="status" aria-live="polite" className="mt-4 text-sm">{loading?"Loading your decks…":message}</div>
   {error&&<div role="alert" className="mt-3 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">{error}{failures.length>0&&<button disabled={busy} onClick={()=>generate(failures)} className="ml-3 underline">Retry unfinished decks</button>}</div>}
-  <div className="mt-8 flex flex-wrap items-center justify-between gap-4"><h2 className="display text-2xl">Your decks <span className="text-muted">{ready.length}/20</span></h2><div className="flex flex-wrap gap-3"><button disabled={busy||!dirty} className="btn-outline" onClick={save}>{dirty?"Save changes *":"Saved"}</button><button disabled={busy||!ready.length} className="btn-primary" onClick={()=>exportDecks(ready.map(({i})=>i))}>Download all decks</button></div></div>
+  <div className="mt-8 flex flex-wrap items-center justify-between gap-4"><h2 className="display text-2xl">Your decks <span className="text-muted">{ready.length}/20</span></h2><div className="flex flex-wrap gap-3"><button disabled={busy||!dirty} className="btn-outline" onClick={save}>{dirty?"Save changes *":"Saved"}</button><button disabled={busy||!ready.length} className="btn-primary" onClick={()=>openPngs(selected!==null&&complete(decks[selected])?selected:ready[0].i)}>Download PNGs</button></div></div>
   {!loading&&decks.length>0&&ready.length===0&&<div className="mt-5 border border-dashed border-line rounded-2xl p-8 text-center"><p className="font-bold text-xl">Your first batch starts here.</p><p className="text-muted mt-2">AI writes the hook, five predictions, closing slide, and caption for every deck.</p><button disabled={busy} className="mt-4 underline text-sm" onClick={()=>openDeck(0)}>Or write a deck manually</button></div>}
-  <div className="mt-5 flex flex-wrap gap-3">{ready.map(({d,i})=><button disabled={busy} key={d.id} aria-label={`Edit deck ${i+1}`} onClick={()=>openDeck(i)} className={`rounded-2xl p-1 text-left border ${selected===i?"border-ink bg-ink/5":"border-line"}`}><Preview deck={d} index={0} width={144}/><p className="mt-2 font-bold text-sm">Deck {i+1} · {d.slides.length} slides</p><p className="text-xs text-muted">{d.customColors?"Custom colors":CARD_THEMES[deckTheme(d)].name} · {d.exported?"Exported":"Click to edit"}</p></button>)}</div>
+  <div className="mt-5 flex flex-wrap gap-3">{ready.map(({d,i})=><div key={d.id} className={`rounded-2xl p-1 border ${selected===i?"border-ink bg-ink/5":"border-line"}`}><button disabled={busy} aria-label={`Edit deck ${i+1}`} onClick={()=>openDeck(i)} className="block text-left"><Preview deck={d} index={0} width={144}/><p className="mt-2 font-bold text-sm">Deck {i+1} · {d.slides.length} slides</p><p className="text-xs text-muted">{d.customColors?"Custom colors":CARD_THEMES[deckTheme(d)].name} · {d.exported?"Exported":"Click to edit"}</p></button><button type="button" disabled={busy} aria-label={`Download deck ${i+1} as PNGs`} className="btn-outline mt-2 w-full text-xs" onClick={()=>openPngs(i)}>↓ PNGs</button></div>)}</div>
 
   {active&&current&&<section ref={editorRef} className="mt-10 scroll-mt-24 border-t border-line pt-7">
-   <div className="flex flex-wrap justify-between items-center gap-3"><h2 className="display text-3xl">Deck {selected!+1}</h2><div className="flex gap-3"><button disabled={busy} className="btn-outline" onClick={()=>{if(confirm("Replace this deck’s copy with a fresh AI version?"))generate([selected!]);}}>Regenerate deck</button><button disabled={busy||!complete(active)} className="btn-primary" onClick={()=>exportDecks([selected!])}>Download deck</button><button disabled={busy} aria-label="Close deck editor" onClick={()=>setSelected(null)}>✕</button></div></div>
+   <div className="flex flex-wrap justify-between items-center gap-3"><h2 className="display text-3xl">Deck {selected!+1}</h2><div className="flex gap-3"><button disabled={busy} className="btn-outline" onClick={()=>{if(confirm("Replace this deck’s copy with a fresh AI version?"))generate([selected!]);}}>Regenerate deck</button><button disabled={busy||!complete(active)} className="btn-primary" onClick={()=>openPngs(selected!)}>Download PNGs</button><button disabled={busy} aria-label="Close deck editor" onClick={()=>setSelected(null)}>✕</button></div></div>
    <p className="mt-2 text-muted text-sm">Click any slide to edit it. Your changes appear immediately.</p>
    <label className="mt-4 block max-w-xs"><span className="label">Deck theme</span><select aria-label="Deck theme" disabled={busy} className={input} value={deckTheme(active)} onChange={e=>update({theme:Number(e.target.value),customColors:undefined})}>{CARD_THEMES.map((t,i)=><option key={t.name} value={i}>{t.name}</option>)}</select></label>
    <details className="mt-3 rounded-xl border border-line p-4"><summary className="cursor-pointer text-sm font-bold">Customize deck colors</summary><fieldset disabled={busy} className="mt-4 flex flex-wrap gap-5">{(["ink","paper","lime"] as const).map(key=><label key={key} className="text-sm"><span className="block mb-2">{({ink:"Dark / text",paper:"Light / background",lime:"Accent"})[key]}</span><input aria-label={`Deck ${key} color`} type="color" value={deckColors(active)[key]} onChange={e=>{const colors=deckColors(active);update({customColors:{ink:colors.ink,paper:colors.paper,lime:colors.lime,[key]:e.target.value}});}} className="h-10 w-20 cursor-pointer"/></label>)}<button className="text-sm underline" onClick={()=>update({customColors:undefined})}>Reset to preset colors</button></fieldset></details>
@@ -166,6 +177,7 @@ export default function WeeklyStudio() {
     <aside className="hidden lg:block"><Preview deck={active} index={editing}/></aside>
    </div>
   </section>}
-  <details className="mt-10 border-t border-line pt-5"><summary className="cursor-pointer text-sm font-bold">Weekly calendar & exports</summary><div className="mt-4 space-y-4"><label className="block"><span className="label">Week beginning Monday</span><input disabled={busy||loading} type="date" className="input max-w-xs" value={week} onChange={e=>{if(new Date(e.target.value+"T12:00Z").getUTCDay()!==1){setError("Choose a Monday.");return;}if(!dirty||confirm("Discard unsaved edits and switch weeks?"))setWeek(e.target.value);}}/></label><p className="text-sm">{ready.length}/20 created · {decks.filter(d=>d.exported).length} exported · {decks.filter(d=>d.scheduled).length} scheduled · America/New_York</p><div className="grid grid-cols-2 md:grid-cols-7 gap-2">{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((day,n)=><section className="border border-line rounded-xl p-3" key={day}><b>{day}</b>{decks.map((d,i)=>({d,i})).filter(({d})=>Math.round((Date.parse(d.slot.slice(0,10))-Date.parse(week))/86400000)===n).map(({d,i})=><button disabled={busy} className="block text-left text-xs mt-3" key={d.id} onClick={()=>openDeck(i)}>{d.slot.slice(11)} · Deck {i+1}<br/>{d.scheduled?"Scheduled":complete(d)?"Ready to edit":"Empty"}</button>)}</section>)}</div><button className="btn-outline" disabled={!decks.length} onClick={()=>download(new Blob([manifest(decks)],{type:"text/csv"}),`wrong-${week}.csv`)}>Download schedule CSV</button></div></details>
+  {pngIndex!==null&&<PngDownloads key={pngIndex} decks={decks} deckIndex={pngIndex} available={ready.map(({i})=>i)} onSelect={setPngIndex} onClose={()=>setPngIndex(null)} onExported={()=>markPngExported(pngIndex)}/>}
+  <details className="mt-10 border-t border-line pt-5"><summary className="cursor-pointer text-sm font-bold">Weekly calendar & optional ZIP export</summary><div className="mt-4 space-y-4"><label className="block"><span className="label">Week beginning Monday</span><input disabled={busy||loading} type="date" className="input max-w-xs" value={week} onChange={e=>{if(new Date(e.target.value+"T12:00Z").getUTCDay()!==1){setError("Choose a Monday.");return;}if(!dirty||confirm("Discard unsaved edits and switch weeks?"))setWeek(e.target.value);}}/></label><p className="text-sm">{ready.length}/20 created · {decks.filter(d=>d.exported).length} exported · {decks.filter(d=>d.scheduled).length} scheduled · America/New_York</p><div className="grid grid-cols-2 md:grid-cols-7 gap-2">{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((day,n)=><section className="border border-line rounded-xl p-3" key={day}><b>{day}</b>{decks.map((d,i)=>({d,i})).filter(({d})=>Math.round((Date.parse(d.slot.slice(0,10))-Date.parse(week))/86400000)===n).map(({d,i})=><button disabled={busy} className="block text-left text-xs mt-3" key={d.id} onClick={()=>openDeck(i)}>{d.slot.slice(11)} · Deck {i+1}<br/>{d.scheduled?"Scheduled":complete(d)?"Ready to edit":"Empty"}</button>)}</section>)}</div><button className="btn-outline" disabled={!decks.length} onClick={()=>download(new Blob([manifest(decks)],{type:"text/csv"}),`wrong-${week}.csv`)}>Download schedule CSV</button><button className="btn-outline ml-3" disabled={busy||!ready.length} onClick={()=>exportDecks(ready.map(({i})=>i))}>Download all decks (ZIP)</button></div></details>
  </main>;
 }
