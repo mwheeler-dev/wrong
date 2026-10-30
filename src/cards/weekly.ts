@@ -1,7 +1,8 @@
+import { CARD_THEMES, deckTheme } from "./theme";
 export const templates = ["Bold Challenge", "Confidence Trap", "Reality Check", "Category Clash"] as const;
 export const series = ["Prove You’re Right", "Confidence Trap", "Reality Check", "Category Battles / Hot Takes"];
 export type PromoSlide = { type: "hook" | "prediction" | "cta"; text: string; questionId?: string; kicker?: string; subtext?: string; category?: string; yesPct?: number; source?: string };
-export type WeeklyDeck = { id: string; series: string; category: string; template: number; accent: boolean; slot: string; caption: string; exported: boolean; scheduled: boolean; slides: PromoSlide[] };
+export type WeeklyDeck = { id: string; series: string; category: string; template: number; theme?: number; accent: boolean; slot: string; caption: string; exported: boolean; scheduled: boolean; slides: PromoSlide[] };
 export type LiveQuestion = { id: string; text: string; category: string; status: string; publishDate: string; closesToPredictionsAt: string | null; resolutionDate: string; resolutionCriteria: string; correctAnswer: string | null };
 export function makeWeek(week: string): WeeklyDeck[] {
  const decks: WeeklyDeck[] = [];
@@ -10,7 +11,7 @@ export function makeWeek(week: string): WeeklyDeck[] {
   const times=day===6?["12:00","19:00"]:day===5?["11:00","16:00","20:00"]:["12:00","17:30","20:30"];
   for(const time of times) {
    const i=decks.length; const s=i<8?0:i<13?1:i<17?2:3;
-   decks.push({id:`deck-${i+1}`,series:series[s],category:"Mixed",template:s,accent:true,slot:date.toISOString().slice(0,10)+"T"+time,caption:"",exported:false,scheduled:false,slides:[{type:"hook",text:["Think you know what happens next?","How sure are you, really?","Time for a reality check.","Which side are you on?"][s]},...Array.from({length:5},()=>({type:"prediction" as const,text:""})),{type:"cta",text:"Prove it on Wrong."}]});
+   decks.push({id:`deck-${i+1}`,series:series[s],category:"Mixed",template:s,theme:i%CARD_THEMES.length,accent:true,slot:date.toISOString().slice(0,10)+"T"+time,caption:"",exported:false,scheduled:false,slides:[{type:"hook",text:["Think you know what happens next?","How sure are you, really?","Time for a reality check.","Which side are you on?"][s]},...Array.from({length:5},()=>({type:"prediction" as const,text:""})),{type:"cta",text:"Prove it on Wrong."}]});
   }
  } return decks;
 }
@@ -44,6 +45,7 @@ export function validateBatch(raw: unknown): WeeklyDeck[] {
   for(const k of ["id","series","category","slot","caption"]) if(typeof d[k]!=="string"||d[k].length>(k==="caption"?4000:160)) throw new Error(`Invalid ${k}`);
   if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(d.slot)||!Number.isFinite(Date.parse(d.slot))) throw new Error("Invalid slot");
   if(!Number.isInteger(d.template)||d.template<0||d.template>3) throw new Error("Invalid template");
+  if(d.theme!==undefined&&(!Number.isInteger(d.theme)||d.theme<0||d.theme>=CARD_THEMES.length)) throw new Error("Invalid theme");
   if(!Array.isArray(d.slides)||d.slides.length<3||d.slides.length>12) throw new Error("Use 3–12 slides");
   const slides=d.slides.map((s:PromoSlide)=>{
    if(!s||!["hook","prediction","cta"].includes(s.type)||typeof s.text!=="string"||s.text.length>200) throw new Error("Invalid slide");
@@ -55,7 +57,7 @@ export function validateBatch(raw: unknown): WeeklyDeck[] {
    if(s.yesPct!==undefined&&(!Number.isInteger(s.yesPct)||s.yesPct<0||s.yesPct>100))throw new Error("Invalid percentage");
    return {type:s.type,text:s.text,questionId:s.questionId,kicker:s.kicker,subtext:s.subtext,category:s.category,yesPct:s.yesPct,source:s.source};
   });
-  return {id:d.id,series:d.series,category:d.category,slot:d.slot,caption:d.caption,template:d.template,accent:d.accent===true,exported:d.exported===true,scheduled:d.scheduled===true,slides};
+  return {id:d.id,series:d.series,category:d.category,slot:d.slot,caption:d.caption,template:d.template,theme:d.theme,accent:d.accent===true,exported:d.exported===true,scheduled:d.scheduled===true,slides};
  });
 }
 export function filename(d:WeeklyDeck,i:number) {
@@ -64,5 +66,5 @@ export function filename(d:WeeklyDeck,i:number) {
 }
 export function manifest(decks:WeeklyDeck[]) {
  const cell=(v:unknown)=>'"'+String(v).replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';
- return [["deck","series","category","template","publish_local","timezone","caption","exported","scheduled"],...decks.map(d=>[d.id,d.series,d.category,templates[d.template],d.slot,"America/New_York",d.caption,d.exported,d.scheduled])].map(row=>row.map(cell).join(",")).join("\r\n");
+ return [["deck","series","category","template","theme","publish_local","timezone","caption","exported","scheduled"],...decks.map(d=>[d.id,d.series,d.category,templates[d.template],CARD_THEMES[deckTheme(d)].name,d.slot,"America/New_York",d.caption,d.exported,d.scheduled])].map(row=>row.map(cell).join(",")).join("\r\n");
 }

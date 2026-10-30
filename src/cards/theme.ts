@@ -10,6 +10,21 @@ export const COLORS = {
   inkDim: "rgba(10,10,10,0.55)",
 } as const;
 
+export type CardColors = { [K in keyof typeof COLORS]: string };
+export const CARD_THEMES = [
+  { name: "Classic Lime", colors: COLORS },
+  { name: "Fresh Mint", colors: { ink: "#101C19", paper: "#F3FAF6", lime: "#9DE8C1", paperDim: "#A4B8B0", inkDim: "#52655C" } },
+  { name: "Ice Blue", colors: { ink: "#111B29", paper: "#F3F7FC", lime: "#A8D8F5", paperDim: "#A9B5C8", inkDim: "#52647A" } },
+  { name: "Soft Peach", colors: { ink: "#241914", paper: "#FCF6F0", lime: "#F4BC94", paperDim: "#C5B0A3", inkDim: "#765D4C" } },
+] as const satisfies readonly { name: string; colors: CardColors }[];
+
+/** Legacy weekly decks get a stable alternating palette without rewriting copy. */
+export function deckTheme(deck: { id: string; theme?: number }): number {
+  if (deck.theme !== undefined && Number.isInteger(deck.theme) && deck.theme >= 0 && deck.theme < CARD_THEMES.length) return deck.theme;
+  const index = Number(deck.id.match(/^deck-(\d+)$/)?.[1] ?? 1) - 1;
+  return Math.max(0, index) % CARD_THEMES.length;
+}
+
 export const SLIDE_WIDTH = 1080;
 export const SLIDE_HEIGHT = 1920;
 /** Inner padding on every slide. Generous so type breathes. */

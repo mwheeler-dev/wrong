@@ -1,5 +1,6 @@
 import {
   COLORS,
+  type CardColors,
   SLIDE_HEIGHT,
   SLIDE_PADDING,
   SLIDE_WIDTH,
@@ -12,6 +13,7 @@ type Props = {
   slide: PredictionSlideData;
   index: number;
   total: number;
+  colors?: CardColors;
 };
 
 /**
@@ -19,7 +21,7 @@ type Props = {
  * White bg. Category pill on top, huge question center, two YES/NO bars
  * stacked, with the leading bar filled in lime to create instant tension.
  */
-export function PredictionSlide({ slide, index, total }: Props) {
+export function PredictionSlide({ slide, index, total, colors = COLORS }: Props) {
   const size = autoFitSize(slide.question, TYPE_SCALE.question);
   const yesLeads = slide.yesPct >= slide.noPct;
 
@@ -30,8 +32,8 @@ export function PredictionSlide({ slide, index, total }: Props) {
         height: SLIDE_HEIGHT,
         display: "flex",
         flexDirection: "column",
-        backgroundColor: COLORS.paper,
-        color: COLORS.ink,
+        backgroundColor: colors.paper,
+        color: colors.ink,
         padding: SLIDE_PADDING,
         fontFamily: "Inter",
       }}
@@ -48,8 +50,8 @@ export function PredictionSlide({ slide, index, total }: Props) {
           <div
             style={{
               display: "flex",
-              backgroundColor: COLORS.ink,
-              color: COLORS.paper,
+              backgroundColor: colors.ink,
+              color: colors.paper,
               padding: "16px 28px",
               borderRadius: 999,
               fontSize: 28,
@@ -69,7 +71,7 @@ export function PredictionSlide({ slide, index, total }: Props) {
             fontSize: 28,
             fontWeight: 700,
             letterSpacing: "0.18em",
-            color: COLORS.inkDim,
+            color: colors.inkDim,
           }}
         >
           {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
@@ -97,9 +99,9 @@ export function PredictionSlide({ slide, index, total }: Props) {
 
       {/* Two stacked bars */}
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <YesNoBar label="YES" pct={slide.yesPct} leading={yesLeads} />
+        <YesNoBar label="YES" pct={slide.yesPct} leading={yesLeads} colors={colors} />
         <div style={{ display: "flex", height: 28 }} />
-        <YesNoBar label="NO" pct={slide.noPct} leading={!yesLeads} />
+        <YesNoBar label="NO" pct={slide.noPct} leading={!yesLeads} colors={colors} />
       </div>
 
       {/* Bottom row: brand + optional source */}
@@ -121,7 +123,7 @@ export function PredictionSlide({ slide, index, total }: Props) {
           }}
         >
           <span>Wrong</span>
-          <span style={{ color: COLORS.lime }}>.</span>
+          <span style={{ color: colors.lime }}>.</span>
         </div>
         {slide.source && (
           <div
@@ -130,7 +132,7 @@ export function PredictionSlide({ slide, index, total }: Props) {
               fontSize: 24,
               fontWeight: 700,
               letterSpacing: "0.14em",
-              color: COLORS.inkDim,
+              color: colors.inkDim,
               textTransform: "uppercase",
             }}
           >
@@ -146,10 +148,12 @@ function YesNoBar({
   label,
   pct,
   leading,
+  colors,
 }: {
   label: string;
   pct: number;
   leading: boolean;
+  colors: CardColors;
 }) {
   return (
     <div
@@ -157,11 +161,11 @@ function YesNoBar({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        backgroundColor: leading ? COLORS.lime : COLORS.paper,
-        borderColor: COLORS.ink,
+        backgroundColor: leading ? colors.lime : colors.paper,
+        borderColor: colors.ink,
         borderStyle: "solid",
         borderWidth: leading ? 0 : 6,
-        color: COLORS.ink,
+        color: colors.ink,
         borderRadius: 999,
         padding: "44px 64px",
         fontSize: 110,

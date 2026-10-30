@@ -1,5 +1,6 @@
 import {
   COLORS,
+  type CardColors,
   SLIDE_HEIGHT,
   SLIDE_PADDING,
   SLIDE_WIDTH,
@@ -12,13 +13,14 @@ type Props = {
   slide: HookSlideData;
   index: number;
   total: number;
+  colors?: CardColors;
 };
 
 /**
  * Slide 1 — the hook.
  * Black bg, lime period, huge white type. Designed to stop the scroll.
  */
-export function HookSlide({ slide, index, total }: Props) {
+export function HookSlide({ slide, index, total, colors = COLORS }: Props) {
   const size = autoFitSize(slide.text, TYPE_SCALE.hook);
 
   return (
@@ -28,8 +30,8 @@ export function HookSlide({ slide, index, total }: Props) {
         height: SLIDE_HEIGHT,
         display: "flex",
         flexDirection: "column",
-        backgroundColor: COLORS.ink,
-        color: COLORS.paper,
+        backgroundColor: colors.ink,
+        color: colors.paper,
         padding: SLIDE_PADDING,
         fontFamily: "Inter",
         position: "relative",
@@ -53,7 +55,7 @@ export function HookSlide({ slide, index, total }: Props) {
           }}
         >
           <span>Wrong</span>
-          <span style={{ color: COLORS.lime }}>.</span>
+          <span style={{ color: colors.lime }}>.</span>
         </div>
         <div
           style={{
@@ -61,7 +63,7 @@ export function HookSlide({ slide, index, total }: Props) {
             fontSize: 28,
             fontWeight: 700,
             letterSpacing: "0.18em",
-            color: COLORS.paperDim,
+            color: colors.paperDim,
           }}
         >
           {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
@@ -78,7 +80,7 @@ export function HookSlide({ slide, index, total }: Props) {
             fontWeight: 700,
             letterSpacing: "0.18em",
             textTransform: "uppercase",
-            color: COLORS.lime,
+            color: colors.lime,
           }}
         >
           {slide.kicker}
@@ -108,7 +110,7 @@ export function HookSlide({ slide, index, total }: Props) {
           fontSize: 32,
           fontWeight: 700,
           letterSpacing: "0.22em",
-          color: COLORS.paperDim,
+          color: colors.paperDim,
         }}
       >
         SWIPE →

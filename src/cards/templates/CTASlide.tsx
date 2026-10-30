@@ -1,5 +1,6 @@
 import {
   COLORS,
+  type CardColors,
   SLIDE_HEIGHT,
   SLIDE_PADDING,
   SLIDE_WIDTH,
@@ -12,12 +13,13 @@ type Props = {
   slide: CTASlideData;
   index: number;
   total: number;
+  colors?: CardColors;
 };
 
 /**
  * Slide 7 — the close. Lime background so the carousel ends loud.
  */
-export function CTASlide({ slide, index, total }: Props) {
+export function CTASlide({ slide, index, total, colors = COLORS }: Props) {
   const size = autoFitSize(slide.text, TYPE_SCALE.cta);
 
   return (
@@ -27,8 +29,8 @@ export function CTASlide({ slide, index, total }: Props) {
         height: SLIDE_HEIGHT,
         display: "flex",
         flexDirection: "column",
-        backgroundColor: COLORS.lime,
-        color: COLORS.ink,
+        backgroundColor: colors.lime,
+        color: colors.ink,
         padding: SLIDE_PADDING,
         fontFamily: "Inter",
       }}
@@ -59,7 +61,7 @@ export function CTASlide({ slide, index, total }: Props) {
             fontSize: 28,
             fontWeight: 700,
             letterSpacing: "0.18em",
-            color: COLORS.inkDim,
+            color: colors.inkDim,
           }}
         >
           {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
@@ -101,7 +103,7 @@ export function CTASlide({ slide, index, total }: Props) {
             marginTop: 32,
             width: 220,
             height: 12,
-            backgroundColor: COLORS.ink,
+            backgroundColor: colors.ink,
             borderRadius: 999,
           }}
         />

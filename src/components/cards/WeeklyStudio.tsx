@@ -5,6 +5,7 @@ import Link from "next/link";
 import { makeWeek, qa, series, filename, manifest, type WeeklyDeck, type PromoSlide as SlideData } from "@/cards/weekly";
 import { PromoSlide } from "@/cards/PromoSlide";
 import { zip } from "@/cards/zip";
+import { CARD_THEMES, deckTheme } from "@/cards/theme";
 import { CATEGORIES } from "@/lib/scoring";
 
 function nextMonday() {
@@ -90,7 +91,7 @@ export default function WeeklyStudio() {
      if(!data.deck||!Array.isArray(data.deck.slides)||data.deck.slides.length!==7)throw Error("AI returned incomplete slides. Retry this deck.");
      generated=data.deck;
     }catch(e){failed.push(i);setFailures([...failed]);setError(`Deck ${i+1}: ${(e as Error).message}`);break;}
-    next=next.map((d,j)=>j===i?{...d,...generated,category:category||"Mixed",exported:false,scheduled:false}:d);
+    next=next.map((d,j)=>j===i?{...d,...generated,category:category||"Mixed",theme:deckTheme(d),exported:false,scheduled:false}:d);
     setDecks(next);setDirty(true);
     await persist(next); // Checkpoint every completed deck; stop if saving fails.
     done++;setProgress({done,total:targets.length});
@@ -137,11 +138,12 @@ export default function WeeklyStudio() {
   {error&&<div role="alert" className="mt-3 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">{error}{failures.length>0&&<button disabled={busy} onClick={()=>generate(failures)} className="ml-3 underline">Retry failed deck</button>}</div>}
   <div className="mt-8 flex flex-wrap items-center justify-between gap-4"><h2 className="display text-2xl">Your decks <span className="text-muted">{ready.length}/20</span></h2><div className="flex flex-wrap gap-3"><button disabled={busy||!dirty} className="btn-outline" onClick={save}>{dirty?"Save changes *":"Saved"}</button><button disabled={busy||!ready.length} className="btn-primary" onClick={()=>exportDecks(ready.map(({i})=>i))}>Download all decks</button></div></div>
   {!loading&&decks.length>0&&ready.length===0&&<div className="mt-5 border border-dashed border-line rounded-2xl p-8 text-center"><p className="font-bold text-xl">Your first batch starts here.</p><p className="text-muted mt-2">AI writes the hook, five predictions, closing slide, and caption for every deck.</p><button disabled={busy} className="mt-4 underline text-sm" onClick={()=>openDeck(0)}>Or write a deck manually</button></div>}
-  <div className="mt-5 flex flex-wrap gap-3">{ready.map(({d,i})=><button disabled={busy} key={d.id} aria-label={`Edit deck ${i+1}`} onClick={()=>openDeck(i)} className={`rounded-2xl p-1 text-left border ${selected===i?"border-ink bg-ink/5":"border-line"}`}><Preview deck={d} index={0} width={144}/><p className="mt-2 font-bold text-sm">Deck {i+1} · {d.slides.length} slides</p><p className="text-xs text-muted">{d.exported?"Exported":"Click to edit"}</p></button>)}</div>
+  <div className="mt-5 flex flex-wrap gap-3">{ready.map(({d,i})=><button disabled={busy} key={d.id} aria-label={`Edit deck ${i+1}`} onClick={()=>openDeck(i)} className={`rounded-2xl p-1 text-left border ${selected===i?"border-ink bg-ink/5":"border-line"}`}><Preview deck={d} index={0} width={144}/><p className="mt-2 font-bold text-sm">Deck {i+1} · {d.slides.length} slides</p><p className="text-xs text-muted">{CARD_THEMES[deckTheme(d)].name} · {d.exported?"Exported":"Click to edit"}</p></button>)}</div>
 
   {active&&current&&<section ref={editorRef} className="mt-10 scroll-mt-24 border-t border-line pt-7">
    <div className="flex flex-wrap justify-between items-center gap-3"><h2 className="display text-3xl">Deck {selected!+1}</h2><div className="flex gap-3"><button disabled={busy} className="btn-outline" onClick={()=>{if(confirm("Replace this deck’s copy with a fresh AI version?"))generate([selected!]);}}>Regenerate deck</button><button disabled={busy||!complete(active)} className="btn-primary" onClick={()=>exportDecks([selected!])}>Download deck</button><button disabled={busy} aria-label="Close deck editor" onClick={()=>setSelected(null)}>✕</button></div></div>
    <p className="mt-2 text-muted text-sm">Click any slide to edit it. Your changes appear immediately.</p>
+   <label className="mt-4 block max-w-xs"><span className="label">Deck theme</span><select aria-label="Deck theme" disabled={busy} className={input} value={deckTheme(active)} onChange={e=>update({theme:Number(e.target.value)})}>{CARD_THEMES.map((t,i)=><option key={t.name} value={i}>{t.name}</option>)}</select></label>
    <div className="flex overflow-x-auto gap-3 mt-5 pb-4">{active.slides.map((s,i)=><button key={i} disabled={busy} aria-label={`Edit slide ${i+1}: ${s.type}`} aria-pressed={editing===i} onClick={()=>{setEditing(i);setTimeout(()=>inputRef.current?.focus({preventScroll:true}),0);}} className={`shrink-0 rounded-2xl p-1 border-2 ${editing===i?"border-ink":"border-transparent"}`}><Preview deck={active} index={i} width={162}/><span className="block text-xs mt-2">{i+1} · {s.type}</span></button>)}</div>
    <div className="grid gap-8 lg:grid-cols-[1fr_290px] mt-4">
     <fieldset disabled={busy} className="space-y-4">
