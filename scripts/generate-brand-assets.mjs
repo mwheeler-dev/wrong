@@ -1,67 +1,35 @@
-// Generates resources/icon.png (1024x1024) and resources/splash.png (2732x2732)
-// from inline SVG using sharp (already a transitive dep via @capacitor/assets).
-//
-// Brand: white/light background, black "Wrong" wordmark, neon yellow-green dot.
-// Run via `node scripts/generate-brand-assets.mjs` before `npx cap assets generate`.
+// Generate source artwork, measuring the rendered word before placing its dot.
+// Run: node scripts/generate-brand-assets.mjs
+// Then: npx capacitor-assets generate --android
+import sharp from 'sharp';
+import { mkdir } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const resources = join(root, 'resources');
 
-import sharp from "sharp";
-import { mkdir } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const RESOURCES = join(__dirname, "..", "resources");
-
-const NEON = "#B8F000";
-const INK = "#0A0A0A";
-const PAPER = "#FFFFFF";
-
-function iconSvg(size) {
-  const fontSize = Math.round(size * 0.26);
-  const dotR = Math.round(size * 0.055);
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  <rect width="${size}" height="${size}" fill="${PAPER}"/>
-  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="900" font-size="${fontSize}" fill="${INK}" text-anchor="middle" letter-spacing="-${fontSize * 0.04}">
-    <text x="${size / 2}" y="${size / 2 + fontSize * 0.34}">Wrong</text>
-  </g>
-  <circle cx="${size * 0.785}" cy="${size * 0.57}" r="${dotR}" fill="${NEON}"/>
-</svg>`;
+async function artwork(size, widthFraction) {
+  const word = await sharp({text: {
+    text: '<span foreground="#0A0A0A">Wrong</span>',
+    font: 'Inter Heavy 256',
+    fontfile: join(root, 'public/fonts/card-inter-900.ttf'),
+    rgba: true
+  }}).trim().png().toBuffer({resolveWithObject: true});
+  // Actual ink bounds determine placement, independent of installed system fonts.
+  const radius = Math.round(word.info.height * 0.14);
+  const gap = Math.round(word.info.height * 0.12);
+  const width = word.info.width + gap + radius * 2;
+  const dot = Buffer.from(`<svg width="${radius*2}" height="${radius*2}"><circle cx="${radius}" cy="${radius}" r="${radius}" fill="#B8F000"/></svg>`);
+  const logo = await sharp({create: {width, height: word.info.height, channels: 4, background: '#00000000'}})
+    .composite([{input: word.data, left: 0, top: 0}, {input: dot, left: word.info.width + gap, top: Math.round(word.info.height * 0.82) - radius*2}])
+    .png().toBuffer();
+  const scaled = await sharp(logo).resize({width: Math.round(size * widthFraction)}).png().toBuffer();
+  return sharp({create: {width: size, height: size, channels: 4, background: '#FFFFFF'}})
+    .composite([{input: scaled, gravity: 'centre'}]).png().toBuffer();
 }
-
-function splashSvg(size) {
-  // Splash uses a smaller logo centered on a white field.
-  const fontSize = Math.round(size * 0.12);
-  const dotR = Math.round(size * 0.022);
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  <rect width="${size}" height="${size}" fill="${PAPER}"/>
-  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="900" font-size="${fontSize}" fill="${INK}" text-anchor="middle" letter-spacing="-${fontSize * 0.04}">
-    <text x="${size / 2}" y="${size / 2 + fontSize * 0.34}">Wrong</text>
-  </g>
-  <circle cx="${size * 0.635}" cy="${size * 0.53}" r="${dotR}" fill="${NEON}"/>
-</svg>`;
-}
-
-async function writePng(svg, outPath, size) {
-  const buf = Buffer.from(svg);
-  await sharp(buf, { density: 300 }).resize(size, size).png().toFile(outPath);
-}
-
-async function main() {
-  await mkdir(RESOURCES, { recursive: true });
-
-  await writePng(iconSvg(1024), join(RESOURCES, "icon.png"), 1024);
-  await writePng(splashSvg(2732), join(RESOURCES, "splash.png"), 2732);
-
-  // @capacitor/assets also looks for a dark splash variant; reuse the same
-  // light artwork so a forced dark mode still shows the brand cleanly.
-  await writePng(splashSvg(2732), join(RESOURCES, "splash-dark.png"), 2732);
-
-  console.log("Wrote resources/icon.png, resources/splash.png, resources/splash-dark.png");
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+await mkdir(resources, {recursive: true});
+await sharp(await artwork(1024, 0.78)).toFile(join(resources, 'icon.png'));
+const splash = await artwork(2732, 0.38);
+await sharp(splash).toFile(join(resources, 'splash.png'));
+await sharp(splash).toFile(join(resources, 'splash-dark.png'));
+console.log('Generated icon and splash artwork with a separate lime dot.');
