@@ -1,3 +1,4 @@
+import { UsernameForm } from "@/components/UsernameForm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
@@ -33,6 +34,8 @@ export default async function AccountPage() {
         Signed in as{" "}
         <span className="font-semibold text-ink">{user.email}</span>.
       </p>
+
+      <UsernameForm currentUsername={user.username} />
 
       <section className="mt-8">
         <p className="label">Profile</p>

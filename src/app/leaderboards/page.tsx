@@ -1,3 +1,5 @@
+import { UsernameForm } from "@/components/UsernameForm";
+import { publicUsername } from "@/lib/usernames";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getUserTimezone } from "@/lib/session";
@@ -29,12 +31,12 @@ async function buildRows(opts: {
       userId: true,
       score: true,
       confidence: true,
-      user: { select: { name: true } },
+      user: { select: { id: true, username: true } },
     },
   });
 
   const byUser = new Map<string, {
-    name: string;
+    username: string;
     score: number;
     correct: number;
     total: number;
@@ -43,7 +45,7 @@ async function buildRows(opts: {
 
   for (const p of predictions) {
     const existing = byUser.get(p.userId) ?? {
-      name: p.user.name,
+      username: publicUsername(p.user),
       score: 0,
       correct: 0,
       total: 0,
@@ -58,7 +60,7 @@ async function buildRows(opts: {
 
   const rows: LeaderboardRow[] = Array.from(byUser.entries()).map(([userId, v]) => ({
     userId,
-    name: v.name,
+    username: v.username,
     score: v.score,
     accuracy: v.total === 0 ? null : Math.round((v.correct / v.total) * 100),
     averageConfidence: v.total === 0 ? null : Math.round(v.confidenceSum / v.total),
@@ -140,7 +142,10 @@ export default async function LeaderboardsPage({
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      {user && !user.username && <UsernameForm currentUsername={null} />}
+      {user?.username && <p className="mt-4 text-center text-sm text-muted">Playing as @{user.username} · <Link className="underline" href="/dashboard/account">Edit username</Link></p>}
+
+      <div className="mx-auto mt-6 grid max-w-md grid-cols-3 gap-2">
         <Tab href="/leaderboards?tab=week" active={tab === "week"} label="This week" />
         <Tab href="/leaderboards?tab=all" active={tab === "all"} label="All time" />
         <Tab
@@ -151,18 +156,19 @@ export default async function LeaderboardsPage({
       </div>
 
       {tab === "category" && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {CATEGORIES.map((c) => (
+        <div className="mx-auto mt-4 grid max-w-lg grid-cols-6 gap-2" aria-label="Categories">
+          {CATEGORIES.map((c, i) => (
             <a
               key={c}
               href={`/leaderboards?tab=category&category=${encodeURIComponent(c)}`}
-              className={`pill inline-flex items-center gap-1.5 transition ${
+              aria-current={c === category ? "page" : undefined}
+              className={`flex min-h-12 items-center justify-center gap-1.5 rounded-full border px-1.5 py-3 text-[13px] font-semibold transition min-[380px]:text-sm ${i >= 6 ? "col-span-3" : "col-span-2"} ${
                 c === category
                   ? "border-ink bg-ink text-paper shadow-[0_0_18px_rgba(184,240,0,0.22)]"
-                  : "hover:border-ink"
+                  : "border-line bg-white hover:border-ink"
               }`}
             >
-              <CategoryIcon category={c} className="h-3.5 w-3.5" />
+              <CategoryIcon category={c} className="h-4 w-4 shrink-0" />
               {c}
             </a>
           ))}
@@ -180,7 +186,8 @@ function Tab({ href, active, label }: { href: string; active: boolean; label: st
   return (
     <a
       href={href}
-      className={`btn ${active ? "bg-ink text-paper" : "bg-white border border-line text-ink"}`}
+      aria-current={active ? "page" : undefined}
+      className={`flex min-h-12 items-center justify-center rounded-full border px-1 py-3 text-center text-[13px] font-semibold sm:text-sm ${active ? "border-ink bg-ink text-paper" : "bg-white border border-line text-ink"}`}
     >
       {label}
     </a>

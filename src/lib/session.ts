@@ -70,6 +70,7 @@ export async function getCurrentUser() {
     select: {
       id: true,
       name: true,
+      username: true,
       email: true,
       createdAt: true,
       timezone: true,

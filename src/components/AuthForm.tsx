@@ -8,6 +8,7 @@ type Mode = "login" | "signup";
 
 export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter();
+  const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,7 +51,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       const res = await fetch(isSignup ? "/api/auth/signup" : "/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, timezone }),
+        body: JSON.stringify({ name, username, email, password, timezone }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -74,7 +75,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       <form onSubmit={onSubmit} className="mt-8 space-y-4" noValidate={false}>
         {isSignup && (
           <div>
-            <label className="label" htmlFor="name">Name</label>
+            <label className="label" htmlFor="name">Name (private)</label>
             <input
               id="name"
               className="input mt-1"
@@ -83,6 +84,17 @@ export function AuthForm({ mode }: { mode: Mode }) {
               required
               autoComplete="name"
             />
+          </div>
+        )}
+        {isSignup && (
+          <div>
+            <label className="label" htmlFor="username">Username</label>
+            <input id="username" className="input mt-1" value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              required minLength={8} maxLength={24} pattern="[a-zA-Z0-9_]{8,24}"
+              autoComplete="username" autoCapitalize="none" spellCheck={false}
+              aria-describedby="username-help" />
+            <p id="username-help" className="mt-1 text-xs text-muted">Public on Boards. Use 8–24 letters, numbers, or underscores.</p>
           </div>
         )}
         <div>
