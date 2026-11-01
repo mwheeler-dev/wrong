@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { longestCompleteStreak, streakBadges, qualifiesAsCategoryLeader } from "../src/lib/player-badges";
-import { normalizeUsername, isValidUsername, publicUsername } from "../src/lib/usernames";
+import { normalizeUsername, isValidUsername, publicUsername, usernameChangeAvailableAt } from "../src/lib/usernames";
 
 test("usernames normalize case; reject short, oversized, non-ASCII and unsafe handles", () => {
   assert.equal(normalizeUsername("  SharpPLAYER_1  "), "sharpplayer_1");
@@ -34,4 +34,14 @@ test("category leadership requires positive Edge, enough history, and allows tie
   assert.equal(qualifiesAsCategoryLeader(200, 9, competitors), false);
   assert.equal(qualifiesAsCategoryLeader(0, 20, []), false);
   assert.equal(qualifiesAsCategoryLeader(-10, 20, []), false);
+});
+
+
+test("username cooldown is 72 elapsed hours, including across daylight saving changes", () => {
+  assert.equal(usernameChangeAvailableAt(null), null);
+  const changed = new Date("2026-10-31T15:00:00Z");
+  const available = usernameChangeAvailableAt(changed)!;
+  assert.equal(available.toISOString(), "2026-11-03T15:00:00.000Z");
+  assert.equal(available.getTime() - changed.getTime(), 72 * 60 * 60 * 1000);
+  assert.equal(changed.toISOString(), "2026-10-31T15:00:00.000Z");
 });

@@ -94,7 +94,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
               required minLength={8} maxLength={24} pattern="[a-zA-Z0-9_]{8,24}"
               autoComplete="username" autoCapitalize="none" spellCheck={false}
               aria-describedby="username-help" />
-            <p id="username-help" className="mt-1 text-xs text-muted">Public on Boards. Use 8–24 letters, numbers, or underscores.</p>
+            <p id="username-help" className="mt-1 text-xs text-muted">Public on Boards. Use 8–24 letters, numbers, or underscores. You can change it once every 72 hours.</p>
           </div>
         )}
         <div>

@@ -13,17 +13,17 @@ export type LeaderboardRow = {
   predictions: number;
 };
 type PlayerProfile = Omit<LeaderboardRow, "userId"> & { currentStreak: number; longestStreak: number; badges: PlayerBadge[] };
-const columns = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.5rem_3rem] items-center gap-2 px-3 sm:grid-cols-[2.5rem_minmax(0,1fr)_5rem_4rem] sm:px-4";
+const columns = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.5rem_4rem] items-center gap-2 px-3 sm:grid-cols-[2.5rem_minmax(0,1fr)_5rem_4rem] sm:px-4";
 const percent = (n: number | null) => n == null ? "—" : `${n}%`;
 const edge = (n: number) => n >= 0 ? `+${n}` : String(n);
 
 export function LeaderboardTable({ rows, highlightUserId }: { rows: LeaderboardRow[]; highlightUserId?: string }) {
   const [expanded, setExpanded] = useState<string | null>(null);
-  if (rows.length === 0) return <p className="card text-sm text-muted">No resolved predictions yet.</p>;
+  if (rows.length === 0) return <p className="card text-sm text-muted">No predictions have confirmed outcomes yet. Player scores will appear here once results are confirmed.</p>;
   return (
     <div className="card overflow-hidden p-0">
       <div className={`${columns} border-b border-line bg-ink/[0.02] py-3 text-[11px] font-semibold uppercase tracking-wider text-muted`}>
-        <div>#</div><div>Username</div><div className="text-right">Edge</div><div className="text-right"><abbr title="Accuracy" className="no-underline">Acc.</abbr></div>
+        <div>#</div><div>Username</div><div className="text-right">Edge score</div><div className="text-right tracking-normal">Accuracy</div>
       </div>
       <ul>
         {rows.map((r, i) => {
@@ -70,23 +70,24 @@ function PlayerCard({ row }: { row: LeaderboardRow }) {
   return (
     <section aria-label={`Player details for ${row.username}`} className="mx-3 mb-3 rounded-xl border border-line bg-white p-4">
       <p className="font-bold [overflow-wrap:anywhere]">@{profile?.username ?? row.username}</p>
-      <p className="mt-2 text-xs text-muted">On this board: {row.predictions} resolved · {percent(row.averageConfidence)} average confidence</p>
+      <p className="mt-2 text-xs text-muted">On this board: {row.predictions} {row.predictions === 1 ? "prediction" : "predictions"} with confirmed outcomes. Average confidence on those predictions: {percent(row.averageConfidence)}.</p>
       {!profile && !error && <p role="status" className="mt-3 text-sm text-muted">Loading stats and badges…</p>}
       {error && <p role="alert" className="mt-3 text-sm">Could not load player details. <button type="button" className="underline" onClick={() => setAttempt((n) => n + 1)}>Try again</button></p>}
       {profile && <>
         <p className="label mt-4">All-time stats</p>
         <dl className="mt-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-          {[["Edge", edge(profile.score)], ["Accuracy", percent(profile.accuracy)], ["Avg. confidence", percent(profile.averageConfidence)], ["Resolved", profile.predictions], ["Current streak", `${profile.currentStreak} days`], ["Best streak", `${profile.longestStreak} days`]].map(([label, value]) => (
+          {[["Edge score", edge(profile.score)], ["Prediction accuracy", percent(profile.accuracy)], ["Average confidence", percent(profile.averageConfidence)], ["Predictions with confirmed outcomes", profile.predictions], ["Current daily streak", `${profile.currentStreak} ${profile.currentStreak === 1 ? "day" : "days"}`], ["Longest daily streak", `${profile.longestStreak} ${profile.longestStreak === 1 ? "day" : "days"}`]].map(([label, value]) => (
             <div key={label}><dt className="text-muted">{label}</dt><dd className="font-semibold">{value}</dd></div>
           ))}
         </dl>
+        <p className="mt-3 text-xs text-muted">Prediction accuracy is the percentage of predictions this player got right. Average confidence shows how sure they were when making those predictions. A streak day means answering all 10 daily questions.</p>
         <p className="label mt-4">Badges</p>
         {profile.badges.length ? <ul className="mt-2 space-y-2">{profile.badges.map((badge) => (
           <li key={badge.id} className="rounded-lg border border-line p-3">
             <p className="text-sm font-semibold"><span aria-hidden>{badge.icon}</span> {badge.title}</p>
             <p className="mt-1 text-xs text-muted">{badge.description}</p>
           </li>
-        ))}</ul> : <p className="mt-2 text-sm text-muted">No badges yet. Complete 10 predictions a day for a 3, 7, or 30-day streak, or lead a category with at least 10 resolved predictions and positive Edge.</p>}
+        ))}</ul> : <p className="mt-2 text-sm text-muted">No badges yet. Complete 10 predictions a day for a 3, 7, or 30-day streak, or earn the highest positive Edge score in a category among players with at least 10 predictions with confirmed outcomes.</p>}
       </>}
     </section>
   );

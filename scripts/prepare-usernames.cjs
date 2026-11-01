@@ -6,6 +6,7 @@ async function main() {
   await prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '5s'");
     await tx.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "username" TEXT');
+    await tx.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "usernameChangedAt" TIMESTAMP(3)');
     await tx.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "User_username_key" ON "User"("username")');
   });
   console.log('Username column and unique index ready; existing accounts preserved.');

@@ -121,8 +121,8 @@ export default async function LeaderboardsPage({
             <div className="flex items-center gap-2">
               <p className="label text-accent">Edge</p>
               <InfoTooltip label="What is Edge?" placement="left">
-                Edge increases when your predictions are correct relative to
-                your confidence.
+                Your Edge score adds confidence points for correct predictions
+                and subtracts them for incorrect predictions.
               </InfoTooltip>
             </div>
             <h2 className="display mt-2 text-3xl sm:text-4xl">
@@ -145,7 +145,7 @@ export default async function LeaderboardsPage({
       {user && !user.username && <UsernameForm currentUsername={null} />}
       {user?.username && <p className="mt-4 text-center text-sm text-muted">Playing as @{user.username} · <Link className="underline" href="/dashboard/account">Edit username</Link></p>}
 
-      <div className="mx-auto mt-6 grid max-w-md grid-cols-3 gap-2">
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
         <Tab href="/leaderboards?tab=week" active={tab === "week"} label="This week" />
         <Tab href="/leaderboards?tab=all" active={tab === "all"} label="All time" />
         <Tab
@@ -156,21 +156,25 @@ export default async function LeaderboardsPage({
       </div>
 
       {tab === "category" && (
-        <div className="mx-auto mt-4 grid max-w-lg grid-cols-6 gap-2" aria-label="Categories">
-          {CATEGORIES.map((c, i) => (
-            <a
-              key={c}
-              href={`/leaderboards?tab=category&category=${encodeURIComponent(c)}`}
-              aria-current={c === category ? "page" : undefined}
-              className={`flex min-h-12 items-center justify-center gap-1.5 rounded-full border px-1.5 py-3 text-[13px] font-semibold transition min-[380px]:text-sm ${i >= 6 ? "col-span-3" : "col-span-2"} ${
-                c === category
-                  ? "border-ink bg-ink text-paper shadow-[0_0_18px_rgba(184,240,0,0.22)]"
-                  : "border-line bg-white hover:border-ink"
-              }`}
-            >
-              <CategoryIcon category={c} className="h-4 w-4 shrink-0" />
-              {c}
-            </a>
+        <div className="mt-3 flex flex-col items-center gap-2" aria-label="Categories">
+          {[CATEGORIES.slice(0, 3), CATEGORIES.slice(3, 6), CATEGORIES.slice(6)].map((row, index) => (
+            <div key={index} className="flex flex-wrap justify-center gap-2">
+              {row.map((c) => (
+                <a
+                  key={c}
+                  href={`/leaderboards?tab=category&category=${encodeURIComponent(c)}`}
+                  aria-current={c === category ? "page" : undefined}
+                  className={`pill gap-1.5 transition min-[380px]:text-xs ${
+                    c === category
+                      ? "border-ink bg-ink text-paper shadow-[0_0_18px_rgba(184,240,0,0.22)]"
+                      : "hover:border-ink"
+                  }`}
+                >
+                  <CategoryIcon category={c} className="h-3.5 w-3.5 shrink-0" />
+                  {c}
+                </a>
+              ))}
+            </div>
           ))}
         </div>
       )}
@@ -187,7 +191,7 @@ function Tab({ href, active, label }: { href: string; active: boolean; label: st
     <a
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`flex min-h-12 items-center justify-center rounded-full border px-1 py-3 text-center text-[13px] font-semibold sm:text-sm ${active ? "border-ink bg-ink text-paper" : "bg-white border border-line text-ink"}`}
+      className={`btn border px-4 text-center ${active ? "border-ink bg-ink text-paper" : "bg-white border border-line text-ink"}`}
     >
       {label}
     </a>

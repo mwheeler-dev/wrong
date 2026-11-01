@@ -1,3 +1,4 @@
+import { usernameChangeAvailableAt } from "@/lib/usernames";
 import { UsernameForm } from "@/components/UsernameForm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -35,7 +36,7 @@ export default async function AccountPage() {
         <span className="font-semibold text-ink">{user.email}</span>.
       </p>
 
-      <UsernameForm currentUsername={user.username} />
+      <UsernameForm currentUsername={user.username} nextChangeAt={usernameChangeAvailableAt(user.usernameChangedAt)?.toISOString() ?? null} />
 
       <section className="mt-8">
         <p className="label">Profile</p>

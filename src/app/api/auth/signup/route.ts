@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   let user;
   try {
     user = await prisma.user.create({
-      data: { name, username, email, passwordHash, timezone },
+      data: { name, username, usernameChangedAt: new Date(), email, passwordHash, timezone },
       select: { id: true, name: true, username: true, email: true },
     });
   } catch (error) {

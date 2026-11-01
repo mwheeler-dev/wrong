@@ -12,3 +12,10 @@ export function isValidUsername(value: string): boolean {
 export function publicUsername(user: { id: string; username: string | null }): string {
   return user.username ?? `player_${user.id}`;
 }
+
+export const USERNAME_CHANGE_HOURS = 72;
+export const USERNAME_CHANGE_COOLDOWN_MS = USERNAME_CHANGE_HOURS * 60 * 60 * 1000;
+
+export function usernameChangeAvailableAt(changedAt: Date | null): Date | null {
+  return changedAt ? new Date(changedAt.getTime() + USERNAME_CHANGE_COOLDOWN_MS) : null;
+}

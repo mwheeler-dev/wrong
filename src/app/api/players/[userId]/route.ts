@@ -37,7 +37,7 @@ export async function GET(_req: Request, { params }: { params: { userId: string 
     const leaders = competitors.map((r) => ({ score: r._sum.score ?? 0, total: r._count._all }));
     return qualifiesAsCategoryLeader(value.score, value.total, leaders) ? {
       id: `leader-${category}`, icon: "🏆", title: `${category} leader`,
-      description: `Highest all-time Edge in ${category} among players with at least 10 resolved predictions. Ties count.`,
+      description: `Highest all-time Edge in ${category} among players with at least 10 predictions with confirmed outcomes. Tied players share the badge.`,
     } : null;
   }));
   badges.push(...categoryBadges.filter((b): b is NonNullable<typeof b> => b !== null));
