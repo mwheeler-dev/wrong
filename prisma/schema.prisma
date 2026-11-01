@@ -10,6 +10,7 @@ datasource db {
 model User {
   username String? @unique
   usernameChangedAt DateTime?
+  playIntroStartedAt DateTime?
   id           String            @id @default(cuid())
   name         String
   email        String            @unique

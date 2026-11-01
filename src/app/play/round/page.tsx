@@ -1,3 +1,4 @@
+import { hasStartedPlayToday } from "@/lib/play-intro";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getUserTimezone } from "@/lib/session";
@@ -23,6 +24,7 @@ export default async function PlayPage() {
 
   const userId = user.id;
   const timeZone = getUserTimezone(user);
+  if (!hasStartedPlayToday(user.playIntroStartedAt, timeZone)) redirect("/play");
 
   const now = new Date();
   const tomorrowMidnight = nextMidnight(timeZone, now);

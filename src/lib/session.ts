@@ -72,6 +72,7 @@ export async function getCurrentUser() {
       name: true,
       username: true,
       usernameChangedAt: true,
+      playIntroStartedAt: true,
       email: true,
       createdAt: true,
       timezone: true,
