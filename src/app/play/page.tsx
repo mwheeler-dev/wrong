@@ -1,146 +1,45 @@
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { getCurrentUser, getUserTimezone } from "@/lib/session";
-import { PlayClient } from "@/components/PlayClient";
-import { PlayEmptyState } from "@/components/PlayEmptyState";
-import {
-  DAILY_CAP,
-  countTodaysPredictions,
-  nextMidnight,
-} from "@/lib/daily";
-import { computeStreak } from "@/lib/streaks";
-import {
-  closesLabel,
-  effectiveClosesAt,
-  outcomeLabel,
-} from "@/lib/timing";
+import Link from "next/link";
+import { getCurrentUser } from "@/lib/session";
+import { DAILY_CAP } from "@/lib/daily";
 
 export const dynamic = "force-dynamic";
 
-export default async function PlayPage() {
+export default async function PlayIntroPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
-
-  const userId = user.id;
-  const timeZone = getUserTimezone(user);
-
-  const now = new Date();
-  const tomorrowMidnight = nextMidnight(timeZone, now);
-
-  // SOLE source of truth for the daily cap.
-  const [todayCount, predictionCreatedAts] = await Promise.all([
-    countTodaysPredictions(userId, timeZone, now),
-    prisma.prediction.findMany({
-      where: { userId },
-      select: { createdAt: true },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
-
-  // Streak is computed for COPY ONLY. It is never used to gate play.
-  const streak = computeStreak(
-    predictionCreatedAts.map((p) => p.createdAt),
-    timeZone,
-    now,
-  );
-
-  const remainingToday = Math.max(0, DAILY_CAP - todayCount);
-
-  // CAP-REACHED — driven solely by `todayCount >= DAILY_CAP`. No streak
-  // status, no client cache, no done-screen state participates in this check.
-  if (remainingToday === 0) {
-    return (
-      <PlayEmptyState
-        variant="cap-reached"
-        todayCount={todayCount}
-        streak={streak.streak}
-        streakState={streak.state}
-        nextMidnightIso={tomorrowMidnight.toISOString()}
-      />
-    );
-  }
-
-  // ELIGIBILITY — strict server-side filter.
-  //   status   = PENDING
-  //   publish  <= now
-  //   close    > now  (with legacy fallback to resolutionDate when null)
-  //   user has not already predicted this question (by question id)
-  //
-  // CRITICAL: "already predicted" is keyed strictly on Question.id via the
-  // relation filter below — never on text, category, or any copied field.
-  // That's what makes Duplicate Card work: a duplicate gets a fresh id,
-  // so even a user who answered the source row sees the duplicate here.
-  //
-  // Use explicit AND + equals:null inside the OR so the clause is robust
-  // against Prisma shorthand differences. Same SQL, fewer footguns.
-  const batch = await prisma.question.findMany({
-    where: {
-      publishDate: { lte: now },
-      status: "PENDING",
-      predictions: { none: { userId } },
-      OR: [
-        { closesToPredictionsAt: { gt: now } },
-        {
-          AND: [
-            { closesToPredictionsAt: { equals: null } },
-            { resolutionDate: { gt: now } },
-          ],
-        },
-      ],
-    },
-    orderBy: [{ publishDate: "desc" }, { createdAt: "desc" }],
-    take: remainingToday,
-    select: {
-      id: true,
-      text: true,
-      category: true,
-      resolutionDate: true,
-      closesToPredictionsAt: true,
-      sourceUrl: true,
-    },
-  });
-
-  // POOL-EMPTY — no eligible questions for this user right now, but the
-  // user is still within their daily cap. Copy acknowledges they CAN play
-  // when reality publishes more; we never tell them "come back tomorrow"
-  // here because their day has already started.
-  if (batch.length === 0) {
-    return (
-      <PlayEmptyState
-        variant="pool-empty"
-        todayCount={todayCount}
-        streak={streak.streak}
-        streakState={streak.state}
-        nextMidnightIso={tomorrowMidnight.toISOString()}
-      />
-    );
-  }
-
-  const questions = batch.map((q) => {
-    const closesAt = effectiveClosesAt(q);
-    const closesEqualsResolves =
-      q.closesToPredictionsAt == null ||
-      closesAt.getTime() === q.resolutionDate.getTime();
-    return {
-      id: q.id,
-      text: q.text,
-      category: q.category,
-      sourceUrl: q.sourceUrl,
-      closesLabel: closesLabel(closesAt, timeZone, now),
-      outcomeLabel: closesEqualsResolves
-        ? null
-        : outcomeLabel(q.resolutionDate, timeZone),
-    };
-  });
-
-  // NORMAL ROUND — eligible questions exist and the daily cap isn't reached.
   return (
-    <PlayClient
-      questions={questions}
-      initialAnsweredIds={[]}
-      todayProgress={todayCount}
-      dailyCap={DAILY_CAP}
-      nextMidnightIso={tomorrowMidnight.toISOString()}
-    />
+    <div className="wrap-wide pb-16 pt-6 sm:pt-10">
+      <p className="label">How to play</p>
+      <h1 className="display mt-2 text-4xl sm:text-5xl">Think you know what happens next?</h1>
+      <p className="mt-3 max-w-xl text-base text-muted">
+        Wrong. is a prediction game about real-world events. Make your calls,
+        choose how sure you are, and see how your judgment holds up when the results arrive.
+      </p>
+
+      <ol className="mt-6 space-y-3">
+        <li className="card">
+          <h2 className="font-bold">1. Make your prediction</h2>
+          <p className="mt-1 text-sm text-muted">You have <strong className="text-ink">30 seconds per question</strong> to choose YES or NO, select your confidence, and tap <strong className="text-ink">Lock It In</strong>. If time runs out, that question is skipped.</p>
+        </li>
+        <li className="card">
+          <h2 className="font-bold">2. Choose how sure you are</h2>
+          <p className="mt-1 text-sm text-muted">Pick 60%, 70%, 80%, or 90% confidence. Locked predictions are final. Once the real-world outcome is confirmed, correct predictions add that many points to your <strong className="text-ink">Edge score</strong>; incorrect predictions subtract them. An 80% prediction earns +80 points if correct or −80 if incorrect.</p>
+        </li>
+        <li className="card">
+          <h2 className="font-bold">3. Track how you think</h2>
+          <p className="mt-1 text-sm text-muted">After each prediction, choose what informed your answer: <strong className="text-ink">Intuition, Research, or Experience</strong>. Save that choice to continue. Writing a personal reflection is optional.</p>
+        </li>
+      </ol>
+
+      <div className="mt-5 rounded-2xl border border-line bg-ink/[0.03] p-4 text-sm">
+        <p><strong>Your daily game:</strong> Make up to {DAILY_CAP} predictions. Your allowance resets at midnight in your timezone. Complete all {DAILY_CAP} daily predictions to build your streak.</p>
+        <p className="mt-2"><strong>Your results:</strong> Predictions stay pending until their real-world outcomes are confirmed. Visit <strong>You</strong> to see your prediction history and accuracy. Visit <strong>Boards</strong> to compare Edge scores with other players.</p>
+      </div>
+
+      <div className="mt-6">
+        <Link href="/play/round" prefetch={false} className="btn-accent w-full text-base sm:w-auto sm:min-w-48">Play</Link>
+        <p className="mt-2 text-sm text-muted">The question timer starts when you enter the game.</p>
+        {!user && <p className="mt-2 text-sm text-muted">You’ll need to <Link href="/login" className="underline">sign in</Link> or <Link href="/signup" className="underline">create an account</Link> to play.</p>}
+      </div>
+    </div>
   );
 }

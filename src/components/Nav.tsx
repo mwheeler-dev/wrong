@@ -58,7 +58,7 @@ export function Nav({ user, isAdmin }: Props) {
         {/* Desktop nav */}
         <nav className="hidden items-center gap-1 text-sm font-semibold sm:flex">
           {items.map((it) => (
-            <NavLink key={it.href} href={it.href} active={pathname === it.href}>
+            <NavLink key={it.href} href={it.href} active={(pathname === it.href || (it.href === "/play" && pathname.startsWith("/play/")))}>
               {it.label}
             </NavLink>
           ))}
@@ -112,7 +112,7 @@ export function Nav({ user, isAdmin }: Props) {
                 <Link
                   href={it.href}
                   className={`flex h-12 items-center rounded-2xl px-3 text-base font-semibold ${
-                    pathname === it.href ? "bg-ink text-paper" : "text-ink hover:bg-ink/5"
+                    (pathname === it.href || (it.href === "/play" && pathname.startsWith("/play/"))) ? "bg-ink text-paper" : "text-ink hover:bg-ink/5"
                   }`}
                 >
                   {it.label}
