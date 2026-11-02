@@ -15,7 +15,7 @@ export default async function PlayIntroPage() {
   return (
     <div className="wrap pb-4 pt-4 sm:pt-6">
       <p className="label">Your daily reality check</p>
-      <h1 className="display mt-2 flex items-center gap-2 text-4xl">Prove it.<FlameIcon className="h-8 w-8 text-accent" /></h1>
+      <h1 className="display mt-2 flex items-center gap-2 text-3xl sm:text-4xl"><span>How good is your judgment?</span><FlameIcon className="h-9 w-9 shrink-0 text-ink" /></h1>
       <p className="mt-2 text-sm text-muted">{returningPlayer ? "Pick up where you left off. Active question timers keep running while you’re here." : "Predict what happens next. Find out how right you really are."}</p>
 
       <ol className="mt-4 divide-y divide-line rounded-2xl border border-line bg-white px-3">
@@ -42,7 +42,7 @@ export default async function PlayIntroPage() {
         </li>
       </ol>
 
-      <div className="mt-3 flex items-center justify-center gap-2 text-center text-xs leading-4 text-muted"><TrophyIcon className="h-5 w-5 shrink-0 text-accent" /><p>Up to {DAILY_CAP} predictions a day. Complete all {DAILY_CAP} to build your streak. Resets at midnight, your time.</p></div>
+      <div className="mt-3 flex items-center justify-center gap-2 text-center text-xs leading-4 text-muted"><TrophyIcon className="h-5 w-5 shrink-0 text-ink" /><p>Up to {DAILY_CAP} predictions a day. Complete all {DAILY_CAP} to build your streak. Resets at midnight, your time.</p></div>
       <form action="/api/play/start" method="post" className="mt-3">
         <button type="submit" className="btn-accent w-full text-base">{returningPlayer ? "Continue playing" : "Play"}<span aria-hidden className="ml-2">→</span></button>
       </form>
