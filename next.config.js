@@ -4,8 +4,7 @@ const nextConfig = {
   async redirects() {
     return [
       {
-        source: "/play",
-        has: [{ type: "host", value: "wrong-app.com" }],
+        source: "/download",
         destination: "https://play.google.com/store/apps/details?id=com.wrongapp.mobile",
         statusCode: 302,
       },
