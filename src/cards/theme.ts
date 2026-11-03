@@ -48,7 +48,9 @@ export function fitSafeText(text: string, preferred: number, height: number, lin
     }
     return total + lines;
   }, 0);
-  let size = preferred;
+  const widestWord = Math.max(1, ...text.split(/\s+/).map(word =>
+    [...word].reduce((width, char) => width + (/[MW@]/.test(char) ? 1.05 : /[ilI.,!’']/.test(char) ? 0.35 : /[A-Z]/.test(char) ? 0.8 : 0.7), 0)));
+  let size = Math.min(preferred, Math.floor(SLIDE_SAFE_WIDTH / widestWord));
   while (size > 48 && linesAt(size) * size * lineHeight > height) size--;
   return size;
 }
