@@ -9,6 +9,6 @@ export function PromoSlide({deck,index}:{deck:WeeklyDeck;index:number}) {
   ?{type:"hook",text:s.text||"Your hook here",kicker:s.kicker??deck.series}
   :s.type==="cta"
    ?{type:"cta",text:s.text||"See how wrong you really are.",subtext:s.subtext??"Wrong."}
-   :{type:"prediction",question:s.text||"Your prediction here",category:s.category||deck.category,yesPct:s.yesPct??50,noPct:100-(s.yesPct??50),source:s.source??"Illustrative split"};
- return <Slide slide={slide} index={index} total={deck.slides.length} colors={deckColors(deck)} format={s.format}/>;
+   :{type:"prediction",question:s.text||"Your prediction here",category:s.category||deck.category,yesPct:s.yesPct??50,noPct:100-(s.yesPct??50)};
+ return <Slide slide={slide} index={index} total={deck.slides.length} colors={deckColors(deck)} format={{alignment:"center",...s.format}}/>;
 }

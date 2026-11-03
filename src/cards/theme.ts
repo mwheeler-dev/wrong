@@ -31,8 +31,8 @@ export const SLIDE_HEIGHT = 1920;
 export const SLIDE_PADDING = 80;
 // Keep all meaningful content clear of photo-preview cropping and TikTok UI.
 // Backgrounds still fill the complete 1080×1920 export.
-export const SLIDE_SAFE_PADDING = "220px 190px 340px 90px";
-export const SLIDE_SAFE_WIDTH = SLIDE_WIDTH - 190 - 90;
+export const SLIDE_SAFE_PADDING = "260px 120px 380px";
+export const SLIDE_SAFE_WIDTH = SLIDE_WIDTH - 120 - 120;
 
 /** Conservative wrapping budget, including manual line breaks and long words. */
 export function fitSafeText(text: string, preferred: number, height: number, lineHeight: number): number {

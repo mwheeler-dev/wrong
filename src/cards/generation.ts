@@ -27,7 +27,7 @@ function parsePrediction(raw:unknown,used:Set<string>):PromoSlide {
  const key=predictionKey(text);if(used.has(key))throw new CardGenerationError("AI repeated a prediction.");
  if(typeof q.yesPct!=="number"||!Number.isInteger(q.yesPct)||q.yesPct<0||q.yesPct>100)throw new CardGenerationError("Invalid example split.");
  used.add(key);
- return {type:"prediction",text,category,yesPct:q.yesPct,source:"Illustrative split"};
+ return {type:"prediction",text,category,yesPct:q.yesPct};
 }
 function parseCopy(b:Record<string,unknown>){
  return {hook:requiredString(b.hook,160),kicker:requiredString(b.kicker,80),cta:requiredString(b.cta,160),caption:requiredString(b.caption,2000)};
