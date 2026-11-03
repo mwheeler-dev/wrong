@@ -20,7 +20,7 @@ function download(blob:Blob,name:string) {
 export function complete(d:WeeklyDeck) {return d.slides.every(s=>s.text.trim())&&d.slides.some(s=>s.type==="prediction");}
 function Preview({deck,index,width=270}:{deck:WeeklyDeck;index:number;width?:number}) {
  return <div aria-hidden="true" className="pointer-events-none relative overflow-hidden rounded-xl border border-line bg-white" style={{width,height:width*1920/1080,contain:"strict",pointerEvents:"none"}}>
-  <div style={{position:"absolute",left:0,top:0,width:1080,height:1920,zoom:width/1080,maxWidth:"none"}}><PromoSlide deck={deck} index={index}/></div>
+  <div style={{position:"absolute",left:0,top:0,width:1080,height:1920,transform:`scale(${width/1080})`,transformOrigin:"top left",maxWidth:"none",WebkitTextSizeAdjust:"100%",textSizeAdjust:"100%"}}><PromoSlide deck={deck} index={index}/></div>
  </div>;
 }
 
