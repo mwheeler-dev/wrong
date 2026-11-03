@@ -29,6 +29,29 @@ export const SLIDE_WIDTH = 1080;
 export const SLIDE_HEIGHT = 1920;
 /** Inner padding on every slide. Generous so type breathes. */
 export const SLIDE_PADDING = 80;
+// Keep all meaningful content clear of photo-preview cropping and TikTok UI.
+// Backgrounds still fill the complete 1080×1920 export.
+export const SLIDE_SAFE_PADDING = "220px 190px 340px 90px";
+export const SLIDE_SAFE_WIDTH = SLIDE_WIDTH - 190 - 90;
+
+/** Conservative wrapping budget, including manual line breaks and long words. */
+export function fitSafeText(text: string, preferred: number, height: number, lineHeight: number): number {
+  const linesAt = (size: number) => text.split("\n").reduce((total, paragraph) => {
+    const capacity = Math.max(1, Math.floor(SLIDE_SAFE_WIDTH / (size * 0.65)));
+    let lines = 1, used = 0;
+    for (const word of paragraph.split(/\s+/)) {
+      if (!word) continue;
+      if (used && used + 1 + word.length > capacity) { lines++; used = 0; }
+      const length = word.length + (used ? 1 : 0);
+      lines += Math.floor((length - 1) / capacity);
+      used = length > capacity ? ((length - 1) % capacity) + 1 : used + length;
+    }
+    return total + lines;
+  }, 0);
+  let size = preferred;
+  while (size > 48 && linesAt(size) * size * lineHeight > height) size--;
+  return size;
+}
 
 /**
  * Auto-fit font sizing — linear interp between `max` (short text) and

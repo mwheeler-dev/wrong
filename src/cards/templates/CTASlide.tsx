@@ -4,7 +4,8 @@ import {
   type CardTextFormat,
   cardFontScale,
   SLIDE_HEIGHT,
-  SLIDE_PADDING,
+  SLIDE_SAFE_PADDING,
+  fitSafeText,
   SLIDE_WIDTH,
   TYPE_SCALE,
   autoFitSize,
@@ -23,7 +24,7 @@ type Props = {
  * Slide 7 — the close. Lime background so the carousel ends loud.
  */
 export function CTASlide({ slide, index, total, colors = COLORS, format }: Props) {
-  const size = Math.round(autoFitSize(slide.text, TYPE_SCALE.cta) * cardFontScale(format));
+  const size = fitSafeText(slide.text, Math.round(autoFitSize(slide.text, TYPE_SCALE.cta) * cardFontScale(format)), 940, 0.92);
 
   return (
     <div
@@ -37,7 +38,7 @@ export function CTASlide({ slide, index, total, colors = COLORS, format }: Props
         flexDirection: "column",
         backgroundColor: colors.lime,
         color: colors.ink,
-        padding: SLIDE_PADDING,
+        padding: SLIDE_SAFE_PADDING,
         fontFamily: "Inter",
         fontFeatureSettings: "normal",
       }}

@@ -4,7 +4,8 @@ import {
   type CardTextFormat,
   cardFontScale,
   SLIDE_HEIGHT,
-  SLIDE_PADDING,
+  SLIDE_SAFE_PADDING,
+  fitSafeText,
   SLIDE_WIDTH,
   TYPE_SCALE,
   autoFitSize,
@@ -25,7 +26,7 @@ type Props = {
  * stacked, with the leading bar filled in lime to create instant tension.
  */
 export function PredictionSlide({ slide, index, total, colors = COLORS, format }: Props) {
-  const size = Math.round(autoFitSize(slide.question, TYPE_SCALE.question) * cardFontScale(format));
+  const size = fitSafeText(slide.question, Math.round(autoFitSize(slide.question, TYPE_SCALE.question) * cardFontScale(format)), 580, 0.96);
   const yesLeads = slide.yesPct >= slide.noPct;
 
   return (
@@ -40,7 +41,7 @@ export function PredictionSlide({ slide, index, total, colors = COLORS, format }
         flexDirection: "column",
         backgroundColor: colors.paper,
         color: colors.ink,
-        padding: SLIDE_PADDING,
+        padding: SLIDE_SAFE_PADDING,
         fontFamily: "Inter",
         fontFeatureSettings: "normal",
       }}
@@ -174,13 +175,13 @@ function YesNoBar({
         borderWidth: leading ? 0 : 6,
         color: colors.ink,
         borderRadius: 999,
-        padding: "44px 64px",
-        fontSize: 110,
+        padding: "32px 48px",
+        fontSize: 88,
         fontWeight: 900,
         letterSpacing: "-0.03em",
         // Compensate the height delta from the missing border on the
         // leading bar so the two bars align visually
-        ...(leading ? { padding: "50px 70px" } : {}),
+        ...(leading ? { padding: "38px 54px" } : {}),
       }}
     >
       <span style={{ display: "flex" }}>{label}</span>
