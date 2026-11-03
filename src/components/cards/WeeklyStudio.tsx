@@ -19,8 +19,8 @@ function download(blob:Blob,name:string) {
 }
 export function complete(d:WeeklyDeck) {return d.slides.every(s=>s.text.trim())&&d.slides.some(s=>s.type==="prediction");}
 function Preview({deck,index,width=270}:{deck:WeeklyDeck;index:number;width?:number}) {
- return <div className="overflow-hidden rounded-xl border border-line bg-white" style={{width,height:width*1920/1080}}>
-  <div style={{width:1080,height:1920,transform:`scale(${width/1080})`,transformOrigin:"top left",maxWidth:"none"}}><PromoSlide deck={deck} index={index}/></div>
+ return <div aria-hidden="true" className="pointer-events-none relative isolate overflow-hidden rounded-xl border border-line bg-white" style={{width,height:width*1920/1080}}>
+  <div style={{position:"absolute",left:0,top:0,width:1080,height:1920,transform:`scale(${width/1080})`,transformOrigin:"top left",maxWidth:"none"}}><PromoSlide deck={deck} index={index}/></div>
  </div>;
 }
 
@@ -61,9 +61,16 @@ export default function WeeklyStudio() {
  },[dirty,busy]);
 
  async function persist(next:WeeklyDeck[]) {
-  const r=await fetch("/api/admin/card-batches",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({week,decks:next})});
-  const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(data.error||"Save failed. Keep this tab open and retry Save.");
-  setDirty(false);
+  const abort=new AbortController();
+  const timeout=setTimeout(()=>abort.abort(),25000);
+  try {
+   const r=await fetch("/api/admin/card-batches",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({week,decks:next}),signal:abort.signal});
+   const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(data.error||"Save failed. Keep this tab open and retry Save.");
+   setDirty(false);
+  } catch(e) {
+   if(abort.signal.aborted)throw Error("Saving took too long. Your edits are still here. Try Save again.");
+   throw e;
+  } finally {clearTimeout(timeout);}
  }
  function update(patch:Partial<WeeklyDeck>) {
   if(selected===null)return;
@@ -106,10 +113,10 @@ export default function WeeklyStudio() {
   }catch(e){setError((e as Error).message);setMessage("Generation paused. Your latest deck is still in this tab; click Save before leaving.");}
   finally{lock.current=false;setBusy(false);setProgress(null);}
  }
- async function openPngs(index:number){
+ function openPngs(index:number){
   if(lock.current||!complete(decks[index]))return;
-  lock.current=true;setBusy(true);setError("");
-  try{await persist(decks);setPngIndex(index);}catch(e){setError((e as Error).message);}finally{lock.current=false;setBusy(false);}
+  // Export the current in-memory revision without blocking on a separate save.
+  setError("");setPngIndex(index);
  }
  async function markPngExported(index:number){
   const next=decks.map((d,i)=>i===index?{...d,exported:true}:d);
@@ -160,10 +167,11 @@ export default function WeeklyStudio() {
    <p className="mt-2 text-muted text-sm">Click any slide to edit it. Your changes appear immediately.</p>
    <label className="mt-4 block max-w-xs"><span className="label">Deck theme</span><select aria-label="Deck theme" disabled={busy} className={input} value={deckTheme(active)} onChange={e=>update({theme:Number(e.target.value),customColors:undefined})}>{CARD_THEMES.map((t,i)=><option key={t.name} value={i}>{t.name}</option>)}</select></label>
    <details className="mt-3 rounded-xl border border-line p-4"><summary className="cursor-pointer text-sm font-bold">Customize deck colors</summary><fieldset disabled={busy} className="mt-4 flex flex-wrap gap-5">{(["ink","paper","lime"] as const).map(key=><label key={key} className="text-sm"><span className="block mb-2">{({ink:"Dark / text",paper:"Light / background",lime:"Accent"})[key]}</span><input aria-label={`Deck ${key} color`} type="color" value={deckColors(active)[key]} onChange={e=>{const colors=deckColors(active);update({customColors:{ink:colors.ink,paper:colors.paper,lime:colors.lime,[key]:e.target.value}});}} className="h-10 w-20 cursor-pointer"/></label>)}<button className="text-sm underline" onClick={()=>update({customColors:undefined})}>Reset to preset colors</button></fieldset></details>
-   <div className="flex overflow-x-auto gap-3 mt-5 pb-4">{active.slides.map((s,i)=><button key={i} disabled={busy} aria-label={`Edit slide ${i+1}: ${s.type}`} aria-pressed={editing===i} onClick={()=>{setEditing(i);setTimeout(()=>inputRef.current?.focus({preventScroll:true}),0);}} className={`shrink-0 rounded-2xl p-1 border-2 ${editing===i?"border-ink":"border-transparent"}`}><Preview deck={active} index={i} width={162}/><span className="block text-xs mt-2">{i+1} · {s.type}</span></button>)}</div>
+   <label className="mt-5 block"><span className="label">Slide to edit</span><select aria-label="Slide to edit" className={input} disabled={busy} value={editing} onChange={e=>setEditing(Number(e.target.value))}>{active.slides.map((s,i)=><option key={i} value={i}>Slide {i+1} · {s.type}</option>)}</select></label>
+   <div className="flex overflow-x-auto gap-3 mt-3 pb-4">{active.slides.map((s,i)=><button key={i} disabled={busy} aria-label={`Edit slide ${i+1}: ${s.type}`} aria-pressed={editing===i} onClick={()=>setEditing(i)} className={`relative touch-manipulation shrink-0 rounded-2xl p-1 border-2 ${editing===i?"border-ink":"border-transparent"}`}><Preview deck={active} index={i} width={162}/><span className="block text-xs mt-2">{i+1} · {s.type}</span></button>)}</div>
    <div className="grid gap-8 lg:grid-cols-[1fr_290px] mt-4">
     <fieldset disabled={busy} className="space-y-4">
-     <div className="grid grid-cols-2 gap-4"><label><span className="label">Text alignment</span><select aria-label="Text alignment" className={input} value={current.format?.alignment??"left"} onChange={e=>updateSlide({format:{...current.format,alignment:e.target.value as "left"|"center"|"right"}})}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label><span className="label">Text size · {Math.round((current.format?.fontScale??1)*100)}%</span><input aria-label="Text size" className="w-full mt-4" type="range" min={70} max={115} step={5} value={Math.round((current.format?.fontScale??1)*100)} onChange={e=>updateSlide({format:{...current.format,fontScale:Number(e.target.value)/100}})}/></label></div>
+     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><label><span className="label">Text alignment</span><select aria-label="Text alignment" className={input} value={current.format?.alignment??"left"} onChange={e=>updateSlide({format:{...current.format,alignment:e.target.value as "left"|"center"|"right"}})}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><div><label htmlFor="slide-text-size" className="label">Text size · {Math.round((current.format?.fontScale??1)*100)}%</label><div className="mt-1 flex min-h-12 items-center gap-3"><button type="button" aria-label="Decrease text size" disabled={(current.format?.fontScale??1)<=0.7} className="btn-outline h-12 w-12 shrink-0 px-0 text-xl" onClick={()=>updateSlide({format:{...current.format,fontScale:Math.max(70,Math.round((current.format?.fontScale??1)*100)-5)/100}})}>−</button><input id="slide-text-size" aria-label="Text size" aria-valuetext={`${Math.round((current.format?.fontScale??1)*100)} percent`} className="card-size-range min-w-0 flex-1" type="range" min={70} max={115} step={5} value={Math.round((current.format?.fontScale??1)*100)} onChange={e=>updateSlide({format:{...current.format,fontScale:Number(e.target.value)/100}})}/><button type="button" aria-label="Increase text size" disabled={(current.format?.fontScale??1)>=1.15} className="btn-outline h-12 w-12 shrink-0 px-0 text-xl" onClick={()=>updateSlide({format:{...current.format,fontScale:Math.min(115,Math.round((current.format?.fontScale??1)*100)+5)/100}})}>+</button></div></div></div>
      <div className="flex gap-4 text-sm"><button onClick={()=>update({slides:active.slides.map(s=>({...s,format:{...current.format}}))})}>Apply formatting to all slides</button><button onClick={()=>updateSlide({format:undefined})}>Reset slide formatting</button></div>
      <label className="block"><span className="label">Slide {editing+1} — {current.type==='prediction'?"Example prediction":"Copy"}</span><textarea aria-label={`Slide ${editing+1} — ${current.type==='prediction'?"Example prediction":"Copy"}`} ref={inputRef} className={`${input} min-h-[120px] text-lg`} maxLength={200} value={current.text} onChange={e=>updateSlide({text:e.target.value})}/></label>
      {current.type==='hook'&&<label className="block"><span className="label">Small headline</span><input className={input} maxLength={80} value={current.kicker??active.series} onChange={e=>updateSlide({kicker:e.target.value})}/></label>}

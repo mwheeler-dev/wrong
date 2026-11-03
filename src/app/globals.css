@@ -193,3 +193,11 @@ input, select, textarea {
     animation: none !important;
   }
 }
+
+/* Large touch target independent of the visible slider track. */
+.card-size-range { height: 48px; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; touch-action: pan-y; }
+.card-size-range::-webkit-slider-runnable-track { height: 8px; border-radius: 999px; background: #d4d4d4; }
+.card-size-range::-moz-range-track { height: 8px; border-radius: 999px; background: #d4d4d4; }
+.card-size-range::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; height: 30px; width: 30px; margin-top: -11px; border-radius: 50%; border: 2px solid #0a0a0a; background: #b8f000; }
+.card-size-range::-moz-range-thumb { height: 28px; width: 28px; border-radius: 50%; border: 2px solid #0a0a0a; background: #b8f000; }
+.card-size-range:focus-visible { outline: 2px solid #0a0a0a; outline-offset: 3px; border-radius: 8px; }
