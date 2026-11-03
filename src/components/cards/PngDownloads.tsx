@@ -28,17 +28,21 @@ export default function PngDownloads({decks,deckIndex,available,onSelect,onClose
  useEffect(()=>{
   const abort=new AbortController();const urls:string[]=[];
   setFiles([]);setError("");setNotice("");setLoading(true);saved.current.clear();
+  let timedOut=false;
   async function render(){
    try{
     for(let index=0;index<deck.slides.length;index++){
+     const timeout=setTimeout(()=>{timedOut=true;abort.abort();},25000);
+     try {
      const response=await fetch("/api/admin/card-batches/png",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({decks:snapshot.decks,deckIndex:snapshot.deckIndex,index}),signal:abort.signal});
      if(!response.ok||!response.headers.get("Content-Type")?.includes("image/png"))throw Error(`Could not prepare slide ${index+1}. Please retry.`);
      const blob=await response.blob();if(abort.signal.aborted)return;
      const file=new File([blob],filename(deck,index),{type:"image/png"});
      const url=URL.createObjectURL(file);urls.push(url);setFiles(previous=>[...previous,{file,url,index}]);
+     } finally {clearTimeout(timeout);}
     }
-   }catch(e){if(!abort.signal.aborted)setError((e as Error).message);}
-   finally{if(!abort.signal.aborted)setLoading(false);}
+   }catch(e){if(timedOut)setError("Preparing PNGs took too long. Your deck is unchanged. Tap Retry PNGs below.");else if(!abort.signal.aborted)setError((e as Error).message);}
+   finally{if(timedOut||!abort.signal.aborted)setLoading(false);}
   }
   void render();
   return()=>{abort.abort();urls.forEach(url=>URL.revokeObjectURL(url));};
